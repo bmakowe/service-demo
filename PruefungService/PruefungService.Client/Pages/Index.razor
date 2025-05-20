@@ -1,8 +1,10 @@
 @page "/"
-@inject HttpClient Http
+@inject IPruefungDataService PruefungService
+@inject IPruefungsDurchfuehrungsService PruefungsDurchfuehrung
 @inject IJSRuntime JS
-@using System.Text.Json
-@using System.Text.Json.Serialization
+@using PruefungService.Client.Models
+@using PruefungService.Client.Services.Interfaces
+@implements IDisposable
 
 @if (pruefungen == null || alleAufgaben == null)
 {
@@ -17,9 +19,9 @@ else if (errorMessage != null)
 else if (aktuellePruefungsaufgaben != null)
 {
     <div class="mb-4">
-        <h2>@aktuellePruefung?.Titel</h2>
-        <p>Zeitlimit: @aktuellePruefung?.Zeitlimit Minuten</p>
-        <p>Verbleibende Zeit: @verbleibendeZeit Sekunden</p>
+        <h2>@PruefungsDurchfuehrung.AktuellePruefung?.Titel</h2>
+        <p>Zeitlimit: @PruefungsDurchfuehrung.AktuellePruefung?.Zeitlimit Minuten</p>
+        <p>Verbleibende Zeit: @PruefungsDurchfuehrung.VerbleibendeZeit Sekunden</p>
         <div class="progress mb-3">
             <div class="progress-bar" role="progressbar" style="width: @zeitBalkenBreite%" aria-valuenow="@zeitBalkenBreite" aria-valuemin="0" aria-valuemax="100"></div>
         </div>
@@ -40,11 +42,11 @@ else if (aktuellePruefungsaufgaben != null)
                             {
                                 <li class="list-group-item">
                                     <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="antwort-@aufgabe.Id" id="antwort-@aufgabe.Id-@antwort.Id" @onclick="() => WähleAntwort(aufgabe.Id, antwort.Id)" disabled="@pruefungBeendet">
+                                        <input class="form-check-input" type="radio" name="antwort-@aufgabe.Id" id="antwort-@aufgabe.Id-@antwort.Id" @onclick="() => WähleAntwort(aufgabe.Id, antwort.Id)" disabled="@PruefungsDurchfuehrung.PruefungBeendet">
                                         <label class="form-check-label" for="antwort-@aufgabe.Id-@antwort.Id">
                                             @antwort.Text
                                         </label>
-                                        @if (pruefungBeendet && antwort.IstRichtig)
+                                        @if (PruefungsDurchfuehrung.PruefungBeendet && antwort.IstRichtig)
                                         {
                                             <span class="badge bg-success ms-2">Richtig</span>
                                         }
@@ -60,7 +62,7 @@ else if (aktuellePruefungsaufgaben != null)
 
     <div class="row mt-3">
         <div class="col-12">
-            <button class="btn btn-primary" @onclick="PruefungBeenden" disabled="@pruefungBeendet">Prüfung abschließen</button>
+            <button class="btn btn-primary" @onclick="PruefungBeenden" disabled="@PruefungsDurchfuehrung.PruefungBeendet">Prüfung abschließen</button>
             <button class="btn btn-secondary ms-2" @onclick="ZurückZuPruefungsliste">Zurück zur Übersicht</button>
         </div>
     </div>
@@ -179,21 +181,16 @@ else
 }
 
 @code {
-    private List<Pruefung>? pruefungen;
-    private List<Aufgabe>? alleAufgaben;
-    private List<Aufgabe>? aktuellePruefungsaufgaben;
-    private Pruefung? aktuellePruefung;
-    private Pruefung? selectedPruefung;
+    private List<PruefungViewModel>? pruefungen;
+    private List<AufgabeViewModel>? alleAufgaben;
+    private List<AufgabeViewModel>? aktuellePruefungsaufgaben;
+    private PruefungViewModel? selectedPruefung;
     private string? errorMessage;
-    
-    private bool pruefungBeendet = false;
-    private int verbleibendeZeit = 0;
     private double zeitBalkenBreite = 100;
-    private System.Threading.Timer? timer;
     
     // Neue Prüfung erstellen
     private bool showCreatePruefungForm = false;
-    private PruefungErstellen neuePruefung = new();
+    private PruefungErstellenModel neuePruefung = new();
     private List<int> selectedAufgabenIds = new();
     
     // Prüfungsaufgaben bearbeiten
@@ -205,8 +202,14 @@ else
         try
         {
             // Lade Prüfungen und alle Aufgaben
-            pruefungen = await Http.GetFromJsonAsync<List<Pruefung>>("api/pruefung");
-            alleAufgaben = await Http.GetFromJsonAsync<List<Aufgabe>>("api/aufgaben");
+            var pruefungenResult = await PruefungService.GetAllePruefungenAsync();
+            pruefungen = pruefungenResult.ToList();
+            
+            var aufgabenResult = await PruefungService.GetAlleAufgabenAsync();
+            alleAufgaben = aufgabenResult.ToList();
+            
+            // Event-Handler für Updates vom PruefungsDurchfuehrungsService registrieren
+            PruefungsDurchfuehrung.OnChange += OnPruefungStateChanged;
         }
         catch (Exception ex)
         {
@@ -214,26 +217,36 @@ else
         }
     }
 
+    private void OnPruefungStateChanged()
+    {
+        // Zeitbalken aktualisieren
+        if (PruefungsDurchfuehrung.AktuellePruefung != null)
+        {
+            zeitBalkenBreite = (double)PruefungsDurchfuehrung.VerbleibendeZeit / (PruefungsDurchfuehrung.AktuellePruefung.Zeitlimit * 60) * 100;
+        }
+        
+        InvokeAsync(StateHasChanged);
+    }
+
     private async Task StartePruefung(int pruefungId)
     {
         try
         {
-            // Prüfung abrufen
-            aktuellePruefung = await Http.GetFromJsonAsync<Pruefung>($"api/pruefung/{pruefungId}");
+            // Prüfung über den DurchfuehrungsService starten
+            var erfolg = await PruefungsDurchfuehrung.StartePruefungAsync(pruefungId);
             
-            // Aufgaben für diese Prüfung abrufen
-            aktuellePruefungsaufgaben = await Http.GetFromJsonAsync<List<Aufgabe>>($"api/pruefung/{pruefungId}/aufgaben");
-            
-            pruefungBeendet = false;
-            
-            // Timer für das Zeitlimit starten
-            if (aktuellePruefung != null)
+            if (erfolg)
             {
-                verbleibendeZeit = aktuellePruefung.Zeitlimit * 60; // Umrechnung in Sekunden
-                zeitBalkenBreite = 100;
+                // Aufgaben für die Prüfung laden
+                var aufgaben = await PruefungService.GetAufgabenFuerPruefungAsync(pruefungId);
+                aktuellePruefungsaufgaben = aufgaben.ToList();
                 
-                // Timer für das Herunterzählen der Zeit
-                timer = new System.Threading.Timer(TimerCallback, null, 0, 1000);
+                // Timer starten
+                PruefungsDurchfuehrung.StartTimer();
+            }
+            else
+            {
+                errorMessage = "Fehler beim Starten der Prüfung.";
             }
         }
         catch (Exception ex)
@@ -242,58 +255,30 @@ else
         }
     }
 
-    private void TimerCallback(object? state)
-    {
-        if (verbleibendeZeit > 0)
-        {
-            verbleibendeZeit--;
-            
-            if (aktuellePruefung != null)
-            {
-                zeitBalkenBreite = (double)verbleibendeZeit / (aktuellePruefung.Zeitlimit * 60) * 100;
-            }
-            
-            InvokeAsync(StateHasChanged);
-        }
-        else
-        {
-            PruefungBeenden();
-        }
-    }
-
     private void WähleAntwort(int aufgabeId, int antwortId)
     {
-        // Hier könnte die Antwort gespeichert werden
+        PruefungsDurchfuehrung.WaehleAntwort(aufgabeId, antwortId);
     }
 
     private void PruefungBeenden()
     {
-        pruefungBeendet = true;
+        PruefungsDurchfuehrung.BeendePruefung();
         
-        // Timer stoppen
-        timer?.Change(Timeout.Infinite, Timeout.Infinite);
-        timer?.Dispose();
-        timer = null;
-        
-        InvokeAsync(StateHasChanged);
+        // Hier könnte eine Auswertung angezeigt werden
+        var ergebnis = PruefungsDurchfuehrung.BerechnePruefungsErgebnis();
+        // In einer echten Anwendung würde das Ergebnis gespeichert oder angezeigt werden
     }
 
     private void ZurückZuPruefungsliste()
     {
         aktuellePruefungsaufgaben = null;
-        aktuellePruefung = null;
-        pruefungBeendet = false;
-        
-        // Timer stoppen falls noch aktiv
-        timer?.Change(Timeout.Infinite, Timeout.Infinite);
-        timer?.Dispose();
-        timer = null;
+        PruefungsDurchfuehrung.StopTimer();
     }
 
     // Prüfung erstellen - Formular anzeigen
     private void ShowCreatePruefungForm()
     {
-        neuePruefung = new PruefungErstellen
+        neuePruefung = new PruefungErstellenModel
         {
             Titel = string.Empty,
             Datum = DateTime.Now.AddDays(7),
@@ -326,23 +311,14 @@ else
         {
             neuePruefung.AufgabenIds = selectedAufgabenIds;
             
-            var response = await Http.PostAsJsonAsync("api/pruefung", neuePruefung);
+            var neuePruefungViewModel = await PruefungService.ErstellePruefungAsync(neuePruefung);
             
-            if (response.IsSuccessStatusCode)
+            if (pruefungen != null)
             {
-                var neuePruefungResponse = await response.Content.ReadFromJsonAsync<Pruefung>();
-                
-                if (pruefungen != null && neuePruefungResponse != null)
-                {
-                    pruefungen.Add(neuePruefungResponse);
-                }
-                
-                showCreatePruefungForm = false;
+                pruefungen.Add(neuePruefungViewModel);
             }
-            else
-            {
-                errorMessage = $"Fehler beim Erstellen der Prüfung: {response.ReasonPhrase}";
-            }
+            
+            showCreatePruefungForm = false;
         }
         catch (Exception ex)
         {
@@ -357,7 +333,7 @@ else
     }
 
     // Aufgaben bearbeiten - Formular anzeigen
-    private void ShowEditAufgabenForm(Pruefung pruefung)
+    private void ShowEditAufgabenForm(PruefungViewModel pruefung)
     {
         selectedPruefung = pruefung;
         selectedPruefungAufgabenIds = new List<int>(pruefung.AufgabenIds);
@@ -390,32 +366,23 @@ else
 
         try
         {
-            var aufgabenZuweisen = new AufgabenZuweisen
+            var aufgabenZuweisen = new AufgabenZuweisenModel
             {
                 AufgabenIds = selectedPruefungAufgabenIds
             };
             
-            var response = await Http.PutAsJsonAsync($"api/pruefung/{selectedPruefung.Id}/aufgaben", aufgabenZuweisen);
+            var updatedPruefung = await PruefungService.WeiseAufgabenZuAsync(selectedPruefung.Id, aufgabenZuweisen);
             
-            if (response.IsSuccessStatusCode)
+            if (pruefungen != null && updatedPruefung != null)
             {
-                var updatedPruefung = await response.Content.ReadFromJsonAsync<Pruefung>();
-                
-                if (pruefungen != null && updatedPruefung != null)
+                var index = pruefungen.FindIndex(p => p.Id == updatedPruefung.Id);
+                if (index >= 0)
                 {
-                    var index = pruefungen.FindIndex(p => p.Id == updatedPruefung.Id);
-                    if (index >= 0)
-                    {
-                        pruefungen[index] = updatedPruefung;
-                    }
+                    pruefungen[index] = updatedPruefung;
                 }
-                
-                showEditAufgabenForm = false;
             }
-            else
-            {
-                errorMessage = $"Fehler beim Aktualisieren der Prüfungsaufgaben: {response.ReasonPhrase}";
-            }
+            
+            showEditAufgabenForm = false;
         }
         catch (Exception ex)
         {
@@ -439,22 +406,19 @@ else
 
         try
         {
-            var response = await Http.DeleteAsync($"api/pruefung/{pruefungId}");
+            var erfolg = await PruefungService.LoeschePruefungAsync(pruefungId);
             
-            if (response.IsSuccessStatusCode)
+            if (erfolg && pruefungen != null)
             {
-                if (pruefungen != null)
+                var pruefungToDelete = pruefungen.FirstOrDefault(p => p.Id == pruefungId);
+                if (pruefungToDelete != null)
                 {
-                    var pruefungToDelete = pruefungen.FirstOrDefault(p => p.Id == pruefungId);
-                    if (pruefungToDelete != null)
-                    {
-                        pruefungen.Remove(pruefungToDelete);
-                    }
+                    pruefungen.Remove(pruefungToDelete);
                 }
             }
-            else
+            else if (!erfolg)
             {
-                errorMessage = $"Fehler beim Löschen der Prüfung: {response.ReasonPhrase}";
+                errorMessage = "Fehler beim Löschen der Prüfung.";
             }
         }
         catch (Exception ex)
@@ -463,40 +427,12 @@ else
         }
     }
 
-    // Datenmodelle
-    public class Pruefung
+    public void Dispose()
     {
-        public int Id { get; set; }
-        public string Titel { get; set; } = string.Empty;
-        public List<int> AufgabenIds { get; set; } = new();
-        public DateTime Datum { get; set; } = DateTime.Now;
-        public int Zeitlimit { get; set; } = 30; // in Minuten
-    }
-
-    public class Aufgabe
-    {
-        public int Id { get; set; }
-        public string Frage { get; set; } = string.Empty;
-        public List<Antwort> Antworten { get; set; } = new();
-    }
-
-    public class Antwort
-    {
-        public int Id { get; set; }
-        public string Text { get; set; } = string.Empty;
-        public bool IstRichtig { get; set; }
-    }
-
-    public class PruefungErstellen
-    {
-        public string Titel { get; set; } = string.Empty;
-        public DateTime Datum { get; set; } = DateTime.Now.AddDays(7);
-        public int Zeitlimit { get; set; } = 30;
-        public List<int>? AufgabenIds { get; set; }
-    }
-
-    public class AufgabenZuweisen
-    {
-        public List<int> AufgabenIds { get; set; } = new();
+        // Event-Handler entfernen, um Memory Leaks zu vermeiden
+        if (PruefungsDurchfuehrung != null)
+        {
+            PruefungsDurchfuehrung.OnChange -= OnPruefungStateChanged;
+        }
     }
 }

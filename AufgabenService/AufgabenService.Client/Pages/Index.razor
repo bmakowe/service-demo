@@ -1,8 +1,8 @@
 @page "/"
-@inject HttpClient Http
+@inject IAufgabenDataService AufgabenService
 @inject IJSRuntime JS
-@using System.Text.Json
-@using System.Text.Json.Serialization
+@using AufgabenService.Client.Models
+@using AufgabenService.Client.Services.Interfaces
 
 @if (aufgaben == null)
 {
@@ -124,7 +124,7 @@ else
 }
 
 @code {
-    private List<Aufgabe>? aufgaben;
+    private List<AufgabeViewModel>? aufgaben;
     private string? errorMessage;
     private bool antwortGeprüft = false;
     
@@ -137,7 +137,8 @@ else
     {
         try
         {
-            aufgaben = await Http.GetFromJsonAsync<List<Aufgabe>>("api/aufgaben");
+            var result = await AufgabenService.GetAlleAufgabenAsync();
+            aufgaben = result.ToList();
         }
         catch (Exception ex)
         {
@@ -170,7 +171,7 @@ else
     }
     
     // Formular für Aufgabe bearbeiten anzeigen
-    private void ShowEditAufgabeForm(Aufgabe aufgabe)
+    private void ShowEditAufgabeForm(AufgabeViewModel aufgabe)
     {
         aktuelleAufgabe = new AufgabeViewModel
         {
@@ -263,34 +264,26 @@ else
             }
             
             // DTO erstellen
-            var aufgabeDto = new AufgabeErstellenDto
+            var aufgabeModel = new AufgabeErstellenModel
             {
                 Frage = aktuelleAufgabe.Frage,
-                Antworten = aktuelleAufgabe.Antworten.Select(a => new AntwortErstellenDto
+                Antworten = aktuelleAufgabe.Antworten.Select(a => new AntwortErstellenModel
                 {
                     Text = a.Text,
                     IstRichtig = a.IstRichtig
                 }).ToList()
             };
             
-            // API-Aufruf
-            var response = await Http.PostAsJsonAsync("api/aufgaben", aufgabeDto);
+            // API-Aufruf über Service
+            var neueAufgabe = await AufgabenService.ErstelleAufgabeAsync(aufgabeModel);
             
-            if (response.IsSuccessStatusCode)
+            if (aufgaben != null)
             {
-                var neueAufgabe = await response.Content.ReadFromJsonAsync<Aufgabe>();
-                if (aufgaben != null && neueAufgabe != null)
-                {
-                    aufgaben.Add(neueAufgabe);
-                }
-                
-                showCreateAufgabeForm = false;
-                errorMessage = null;
+                aufgaben.Add(neueAufgabe);
             }
-            else
-            {
-                errorMessage = $"Fehler beim Erstellen der Aufgabe: {response.StatusCode}";
-            }
+            
+            showCreateAufgabeForm = false;
+            errorMessage = null;
         }
         catch (Exception ex)
         {
@@ -329,38 +322,30 @@ else
             }
             
             // DTO erstellen
-            var aufgabeDto = new AufgabeAktualisierenDto
+            var aufgabeModel = new AufgabeErstellenModel
             {
                 Frage = aktuelleAufgabe.Frage,
-                Antworten = aktuelleAufgabe.Antworten.Select(a => new AntwortErstellenDto
+                Antworten = aktuelleAufgabe.Antworten.Select(a => new AntwortErstellenModel
                 {
                     Text = a.Text,
                     IstRichtig = a.IstRichtig
                 }).ToList()
             };
             
-            // API-Aufruf
-            var response = await Http.PutAsJsonAsync($"api/aufgaben/{aktuelleAufgabe.Id}", aufgabeDto);
+            // API-Aufruf über Service
+            var aktualisierteAufgabe = await AufgabenService.AktualisiereAufgabeAsync(aktuelleAufgabe.Id, aufgabeModel);
             
-            if (response.IsSuccessStatusCode)
+            if (aufgaben != null && aktualisierteAufgabe != null)
             {
-                var aktualisierteAufgabe = await response.Content.ReadFromJsonAsync<Aufgabe>();
-                if (aufgaben != null && aktualisierteAufgabe != null)
+                var index = aufgaben.FindIndex(a => a.Id == aktualisierteAufgabe.Id);
+                if (index >= 0)
                 {
-                    var index = aufgaben.FindIndex(a => a.Id == aktualisierteAufgabe.Id);
-                    if (index >= 0)
-                    {
-                        aufgaben[index] = aktualisierteAufgabe;
-                    }
+                    aufgaben[index] = aktualisierteAufgabe;
                 }
-                
-                showEditAufgabeForm = false;
-                errorMessage = null;
             }
-            else
-            {
-                errorMessage = $"Fehler beim Aktualisieren der Aufgabe: {response.StatusCode}";
-            }
+            
+            showEditAufgabeForm = false;
+            errorMessage = null;
         }
         catch (Exception ex)
         {
@@ -378,78 +363,24 @@ else
                 return;
             }
             
-            var response = await Http.DeleteAsync($"api/aufgaben/{id}");
+            var erfolg = await AufgabenService.LoescheAufgabeAsync(id);
             
-            if (response.IsSuccessStatusCode)
+            if (erfolg && aufgaben != null)
             {
-                if (aufgaben != null)
+                var aufgabeToDelete = aufgaben.FirstOrDefault(a => a.Id == id);
+                if (aufgabeToDelete != null)
                 {
-                    var aufgabeToDelete = aufgaben.FirstOrDefault(a => a.Id == id);
-                    if (aufgabeToDelete != null)
-                    {
-                        aufgaben.Remove(aufgabeToDelete);
-                    }
+                    aufgaben.Remove(aufgabeToDelete);
                 }
-                
-                errorMessage = null;
             }
-            else
+            else if (!erfolg)
             {
-                errorMessage = $"Fehler beim Löschen der Aufgabe: {response.StatusCode}";
+                errorMessage = "Fehler beim Löschen der Aufgabe.";
             }
         }
         catch (Exception ex)
         {
             errorMessage = $"Fehler beim Löschen der Aufgabe: {ex.Message}";
         }
-    }
-    
-    // Datenmodelle
-    public class Aufgabe
-    {
-        public int Id { get; set; }
-        public string Frage { get; set; } = string.Empty;
-        public List<Antwort> Antworten { get; set; } = new();
-    }
-
-    public class Antwort
-    {
-        public int Id { get; set; }
-        public string Text { get; set; } = string.Empty; 
-        public bool IstRichtig { get; set; }
-    }
-    
-    // View-Modelle für das Formular
-    public class AufgabeViewModel
-    {
-        public int Id { get; set; }
-        public string Frage { get; set; } = string.Empty;
-        public List<AntwortViewModel> Antworten { get; set; } = new();
-    }
-    
-    public class AntwortViewModel
-    {
-        public int Id { get; set; }
-        public string Text { get; set; } = string.Empty;
-        public bool IstRichtig { get; set; }
-    }
-    
-    // DTOs für API-Aufrufe
-    public class AufgabeErstellenDto
-    {
-        public string Frage { get; set; } = string.Empty;
-        public List<AntwortErstellenDto> Antworten { get; set; } = new();
-    }
-    
-    public class AntwortErstellenDto
-    {
-        public string Text { get; set; } = string.Empty;
-        public bool IstRichtig { get; set; }
-    }
-    
-    public class AufgabeAktualisierenDto
-    {
-        public string Frage { get; set; } = string.Empty;
-        public List<AntwortErstellenDto> Antworten { get; set; } = new();
     }
 }

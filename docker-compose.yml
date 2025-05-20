@@ -1,7 +1,8 @@
 services:
   aufgaben-api:
     build:
-      context: ./AufgabenService/AufgabenService.API
+      context: .
+      dockerfile: AufgabenService/AufgabenService.API/Dockerfile
     ports:
       - "5001:8080"
     networks:
@@ -26,7 +27,8 @@ services:
 
   pruefung-api:
     build:
-      context: ./PruefungService/PruefungService.API
+      context: .
+      dockerfile: PruefungService/PruefungService.API/Dockerfile
     ports:
       - "5002:8080"
     networks:
