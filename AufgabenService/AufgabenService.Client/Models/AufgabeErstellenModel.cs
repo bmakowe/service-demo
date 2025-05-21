@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace AufgabenService.Client.Models
 {
     public class AufgabeErstellenModel

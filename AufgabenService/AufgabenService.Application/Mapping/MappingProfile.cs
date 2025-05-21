@@ -1,28 +1,24 @@
-using AutoMapper;
 using AufgabenService.Application.DTOs;
 using AufgabenService.Domain.Entities;
+using System.Linq;
 
 namespace AufgabenService.Application.Mapping
 {
-    public class MappingProfile : Profile
+    public static class MappingProfile
     {
-        public MappingProfile()
+        public static AufgabeDto MapToDto(Aufgabe aufgabe)
         {
-            // Domain -> DTO
-            CreateMap<Aufgabe, AufgabeDto>();
-            CreateMap<Antwort, AntwortDto>();
-
-            // DTO -> Domain
-            CreateMap<AufgabeErstellenDto, Aufgabe>()
-                .ForMember(dest => dest.Id, opt => opt.Ignore())
-                .ForMember(dest => dest.Antworten, opt => opt.Ignore());
-
-            CreateMap<AufgabeAktualisierenDto, Aufgabe>()
-                .ForMember(dest => dest.Id, opt => opt.Ignore())
-                .ForMember(dest => dest.Antworten, opt => opt.Ignore());
-            
-            CreateMap<AntwortErstellenDto, Antwort>()
-                .ForMember(dest => dest.Id, opt => opt.Ignore());
+            return new AufgabeDto
+            {
+                Id = aufgabe.Id,
+                Frage = aufgabe.Frage,
+                Antworten = aufgabe.Antworten.Select(a => new AntwortDto
+                {
+                    Id = a.Id,
+                    Text = a.Text,
+                    IstRichtig = a.IstRichtig
+                }).ToList()
+            };
         }
     }
 }

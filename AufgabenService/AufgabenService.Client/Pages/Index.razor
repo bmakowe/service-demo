@@ -1,10 +1,10 @@
 @page "/"
-@inject HttpClient Http
+@inject IAufgabenDataService AufgabenService
 @inject IJSRuntime JS
-@using System.Text.Json
-@using System.Text.Json.Serialization
 @using AufgabenService.Client.Models
 @using AufgabenService.Client.Services.Interfaces
+@using System.Text.Json
+@using System.Text.Json.Serialization
 
 @if (aufgaben == null)
 {
@@ -126,23 +126,20 @@ else
 }
 
 @code {
-    private List<AufgabenViewModel>? aufgaben;
+    private List<AufgabeViewModel>? aufgaben;
     private string? errorMessage;
     private bool antwortGeprüft = false;
-    
-    [Inject]
-    private IAufgabenDataService AufgabenDataService { get; set; } = default!;
     
     // Formular-Variablen
     private bool showCreateAufgabeForm = false;
     private bool showEditAufgabeForm = false;
-    private AufgabenViewModel aktuelleAufgabe = new();
+    private AufgabeViewModel aktuelleAufgabe = new();
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            aufgaben = await AufgabenDataService.GetAlleAufgabenAsync();
+            aufgaben = (await AufgabenService.GetAllAufgabenAsync()).ToList();
         }
         catch (Exception ex)
         {
@@ -158,7 +155,7 @@ else
     // Formular für neue Aufgabe anzeigen
     private void ShowCreateAufgabeForm()
     {
-        aktuelleAufgabe = new AufgabenViewModel
+        aktuelleAufgabe = new AufgabeViewModel
         {
             Frage = string.Empty,
             Antworten = new List<AntwortViewModel>
@@ -175,9 +172,9 @@ else
     }
     
     // Formular für Aufgabe bearbeiten anzeigen
-    private void ShowEditAufgabeForm(AufgabenViewModel aufgabe)
+    private void ShowEditAufgabeForm(AufgabeViewModel aufgabe)
     {
-        aktuelleAufgabe = new AufgabenViewModel
+        aktuelleAufgabe = new AufgabeViewModel
         {
             Id = aufgabe.Id,
             Frage = aufgabe.Frage,
@@ -278,8 +275,9 @@ else
                 }).ToList()
             };
             
-            // API-Aufruf
-            var neueAufgabe = await AufgabenDataService.CreateAufgabeAsync(aufgabeDto);
+            // API-Aufruf über den Service
+            var neueAufgabe = await AufgabenService.CreateAufgabeAsync(aufgabeDto);
+            
             if (neueAufgabe != null)
             {
                 if (aufgaben != null)
@@ -289,6 +287,10 @@ else
                 
                 showCreateAufgabeForm = false;
                 errorMessage = null;
+            }
+            else
+            {
+                errorMessage = "Fehler beim Erstellen der Aufgabe.";
             }
         }
         catch (Exception ex)
@@ -338,8 +340,9 @@ else
                 }).ToList()
             };
             
-            // API-Aufruf
-            var aktualisierteAufgabe = await AufgabenDataService.UpdateAufgabeAsync(aktuelleAufgabe.Id, aufgabeDto);
+            // API-Aufruf über den Service
+            var aktualisierteAufgabe = await AufgabenService.UpdateAufgabeAsync(aktuelleAufgabe.Id, aufgabeDto);
+            
             if (aktualisierteAufgabe != null)
             {
                 if (aufgaben != null)
@@ -353,6 +356,10 @@ else
                 
                 showEditAufgabeForm = false;
                 errorMessage = null;
+            }
+            else
+            {
+                errorMessage = "Fehler beim Aktualisieren der Aufgabe.";
             }
         }
         catch (Exception ex)
@@ -371,9 +378,9 @@ else
                 return;
             }
             
-            var success = await AufgabenDataService.DeleteAufgabeAsync(id);
+            var erfolgreich = await AufgabenService.DeleteAufgabeAsync(id);
             
-            if (success)
+            if (erfolgreich)
             {
                 if (aufgaben != null)
                 {

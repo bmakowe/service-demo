@@ -1,7 +1,10 @@
+using Microsoft.AspNetCore.Mvc;
 using AufgabenService.Application.DTOs;
-using AufgabenService.Application.Exceptions;
 using AufgabenService.Application.Interfaces;
+using AufgabenService.Application.Services;
+using AufgabenService.Application.Exceptions;
 using AufgabenService.Infrastructure;
+using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,7 +20,10 @@ builder.Services.AddCors(options =>
         });
 });
 
-// Onion Architecture Setup - Infrastrukturschicht registrieren
+// Application Services registrieren
+builder.Services.AddScoped<IAufgabenService, AufgabenService.Application.Services.AufgabenService>();
+
+// Infrastructure einbinden
 builder.Services.AddInfrastructure();
 
 // Add services to the container.
@@ -36,108 +42,72 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseCors();
 
-// Global exception handling
+// Globaler Exception Handler
 app.Use(async (context, next) =>
 {
     try
     {
         await next();
     }
-    catch (NotFoundException ex)
+    catch (AufgabenService.Application.Exceptions.NotFoundException ex) // Vollständigen Namespace verwenden
     {
-        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        context.Response.StatusCode = (int)HttpStatusCode.NotFound;
         await context.Response.WriteAsJsonAsync(new { error = ex.Message });
     }
-    catch (ValidationException ex)
+    catch (AufgabenService.Application.Exceptions.ValidationException ex) // Vollständigen Namespace verwenden
     {
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
         await context.Response.WriteAsJsonAsync(new { error = ex.Message });
     }
     catch (Exception ex)
     {
-        // Log the error
-        Console.WriteLine($"Unhandled exception: {ex}");
+        context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+        await context.Response.WriteAsJsonAsync(new { error = "Ein interner Fehler ist aufgetreten." });
         
-        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-        await context.Response.WriteAsJsonAsync(new { error = "Ein interner Serverfehler ist aufgetreten." });
+        // In der Produktionsumgebung würde man hier noch loggen
+        Console.Error.WriteLine($"Unhandled exception: {ex}");
     }
 });
 
-// API-Endpunkte konfigurieren
-ConfigureApiEndpoints(app);
+// API-Endpunkte
+app.MapGet("/api/aufgaben", async ([FromServices] IAufgabenService aufgabenService) =>
+{
+    var aufgaben = await aufgabenService.GetAllAufgabenAsync();
+    return Results.Ok(aufgaben);
+})
+.WithName("GetAufgaben")
+.WithOpenApi();
+
+app.MapGet("/api/aufgaben/{id}", async (int id, [FromServices] IAufgabenService aufgabenService) =>
+{
+    var aufgabe = await aufgabenService.GetAufgabeByIdAsync(id);
+    return Results.Ok(aufgabe);
+})
+.WithName("GetAufgabeById")
+.WithOpenApi();
+
+app.MapPost("/api/aufgaben", async (AufgabeErstellenDto aufgabeData, [FromServices] IAufgabenService aufgabenService) =>
+{
+    var aufgabe = await aufgabenService.CreateAufgabeAsync(aufgabeData);
+    return Results.Created($"/api/aufgaben/{aufgabe.Id}", aufgabe);
+})
+.WithName("CreateAufgabe")
+.WithOpenApi();
+
+app.MapPut("/api/aufgaben/{id}", async (int id, AufgabeAktualisierenDto aufgabeData, [FromServices] IAufgabenService aufgabenService) =>
+{
+    var aufgabe = await aufgabenService.UpdateAufgabeAsync(id, aufgabeData);
+    return Results.Ok(aufgabe);
+})
+.WithName("UpdateAufgabe")
+.WithOpenApi();
+
+app.MapDelete("/api/aufgaben/{id}", async (int id, [FromServices] IAufgabenService aufgabenService) =>
+{
+    await aufgabenService.DeleteAufgabeAsync(id);
+    return Results.NoContent();
+})
+.WithName("DeleteAufgabe")
+.WithOpenApi();
 
 app.Run();
-
-void ConfigureApiEndpoints(WebApplication app)
-{
-    // Alle Aufgaben abrufen
-    app.MapGet("/api/aufgaben", async (IAufgabenService aufgabenService) =>
-    {
-        var aufgaben = await aufgabenService.GetAlleAufgabenAsync();
-        return Results.Ok(aufgaben);
-    })
-    .WithName("GetAufgaben")
-    .WithOpenApi();
-
-    // Eine spezifische Aufgabe abrufen
-    app.MapGet("/api/aufgaben/{id}", async (int id, IAufgabenService aufgabenService) =>
-    {
-        var aufgabe = await aufgabenService.GetAufgabeByIdAsync(id);
-        if (aufgabe == null)
-        {
-            return Results.NotFound();
-        }
-        return Results.Ok(aufgabe);
-    })
-    .WithName("GetAufgabeById")
-    .WithOpenApi();
-
-    // Neue Aufgabe erstellen
-    app.MapPost("/api/aufgaben", async (AufgabeErstellenDto aufgabeDto, IAufgabenService aufgabenService) =>
-    {
-        try
-        {
-            var neueAufgabe = await aufgabenService.ErstelleAufgabeAsync(aufgabeDto);
-            return Results.Created($"/api/aufgaben/{neueAufgabe.Id}", neueAufgabe);
-        }
-        catch (ValidationException ex)
-        {
-            return Results.BadRequest(new { error = ex.Message });
-        }
-    })
-    .WithName("CreateAufgabe")
-    .WithOpenApi();
-
-    // Bestehende Aufgabe aktualisieren
-    app.MapPut("/api/aufgaben/{id}", async (int id, AufgabeAktualisierenDto aufgabeDto, IAufgabenService aufgabenService) =>
-    {
-        try
-        {
-            var aktualisierteAufgabe = await aufgabenService.AktualisiereAufgabeAsync(id, aufgabeDto);
-            if (aktualisierteAufgabe == null)
-            {
-                return Results.NotFound();
-            }
-            return Results.Ok(aktualisierteAufgabe);
-        }
-        catch (ValidationException ex)
-        {
-            return Results.BadRequest(new { error = ex.Message });
-        }
-    })
-    .WithName("UpdateAufgabe")
-    .WithOpenApi();
-
-    // Aufgabe löschen
-    app.MapDelete("/api/aufgaben/{id}", async (int id, IAufgabenService aufgabenService) =>
-    {
-        var erfolg = await aufgabenService.LoescheAufgabeAsync(id);
-        if (!erfolg)
-        {
-            return Results.NotFound();
-        }
-        return Results.NoContent();
-    })
-    .WithName("DeleteAufgabe")
-    .WithOpenApi();
-}

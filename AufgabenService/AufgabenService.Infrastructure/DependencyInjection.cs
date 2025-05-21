@@ -1,9 +1,7 @@
-using AufgabenService.Application.Interfaces;
-using AufgabenService.Application.Services;
-using AufgabenService.Infrastructure.Persistence.Repositories;
 using Microsoft.Extensions.DependencyInjection;
-using System.Reflection;
-using AufgabenService.Application.Mapping;
+using AufgabenService.Application.Interfaces;
+using AufgabenService.Infrastructure.Persistence;
+using AufgabenService.Infrastructure.Persistence.Repositories;
 
 namespace AufgabenService.Infrastructure
 {
@@ -11,15 +9,12 @@ namespace AufgabenService.Infrastructure
     {
         public static IServiceCollection AddInfrastructure(this IServiceCollection services)
         {
-            // Repositories
-            services.AddSingleton<IAufgabenRepository, AufgabenRepository>();
-
-            // Services
-            services.AddScoped<IAufgabenService, AufgabenAppService>();
-
-            // AutoMapper
-            services.AddAutoMapper(typeof(MappingProfile).Assembly);
-
+            // In-Memory Datenquelle
+            services.AddSingleton<InMemoryContext>();
+            
+            // Repository-Registrierung
+            services.AddScoped<IAufgabenRepository, AufgabenRepository>();
+            
             return services;
         }
     }

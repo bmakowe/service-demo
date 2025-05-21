@@ -10,11 +10,11 @@ using AufgabenService.Domain.Services;
 
 namespace AufgabenService.Application.Services
 {
-    public class AufgabenAppService : IAufgabenService
+    public class AufgabenService : IAufgabenService
     {
         private readonly IAufgabenRepository _repository;
 
-        public AufgabenAppService(IAufgabenRepository repository)
+        public AufgabenService(IAufgabenRepository repository)
         {
             _repository = repository;
         }

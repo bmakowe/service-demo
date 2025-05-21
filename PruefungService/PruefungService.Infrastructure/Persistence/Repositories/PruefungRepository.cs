@@ -1,71 +1,62 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using PruefungService.Domain.Entities;
-using PruefungService.Domain.Interfaces;
-using PruefungService.Infrastructure.Persistence;
+using PruefungService.Application.Interfaces;
 
 namespace PruefungService.Infrastructure.Persistence.Repositories
 {
     public class PruefungRepository : IPruefungRepository
     {
         private readonly InMemoryContext _context;
+        private int _nextId;
 
         public PruefungRepository(InMemoryContext context)
         {
             _context = context;
+            _nextId = _context.Pruefungen.Count > 0 ? _context.Pruefungen.Max(p => p.Id) + 1 : 1;
         }
 
-        public Task<IEnumerable<Pruefung>> GetAllePruefungenAsync()
+        public Task<IEnumerable<Pruefung>> GetAllAsync()
         {
-            return Task.FromResult(_context.Pruefungen.AsEnumerable());
+            return Task.FromResult<IEnumerable<Pruefung>>(_context.Pruefungen);
         }
 
-        public Task<Pruefung?> GetPruefungByIdAsync(int id)
+        public Task<Pruefung> GetByIdAsync(int id)
         {
             var pruefung = _context.Pruefungen.FirstOrDefault(p => p.Id == id);
             return Task.FromResult(pruefung);
         }
 
-        public Task<Pruefung> ErstellePruefungAsync(Pruefung pruefung)
+        public Task<Pruefung> AddAsync(Pruefung pruefung)
         {
-            // ID generieren (in einer echten DB würde dies automatisch erfolgen)
-            var neueId = _context.Pruefungen.Count > 0 ? _context.Pruefungen.Max(p => p.Id) + 1 : 1;
-            
-            // Neue Prüfung erstellen mit der korrekten ID
-            var neuePruefung = Pruefung.Erstellen(
-                neueId,
-                pruefung.Titel,
-                pruefung.Datum,
-                pruefung.Zeitlimit,
-                pruefung.AufgabenIds
-            );
-            
-            _context.Pruefungen.Add(neuePruefung);
-            
-            return Task.FromResult(neuePruefung);
-        }
-
-        public Task<Pruefung?> AktualisierePruefungAsync(Pruefung pruefung)
-        {
-            var existierendePruefung = _context.Pruefungen.FirstOrDefault(p => p.Id == pruefung.Id);
-            if (existierendePruefung == null)
-                return Task.FromResult<Pruefung?>(null);
-            
-            // Bestehende Prüfung entfernen
-            _context.Pruefungen.Remove(existierendePruefung);
-            
-            // Aktualisierte Prüfung hinzufügen
+            pruefung.SetId(_nextId++);
             _context.Pruefungen.Add(pruefung);
-            
-            return Task.FromResult<Pruefung?>(pruefung);
+            return Task.FromResult(pruefung);
         }
 
-        public Task<bool> LoeschePruefungAsync(int id)
+        public Task<Pruefung> UpdateAsync(Pruefung pruefung)
+        {
+            var existingIndex = _context.Pruefungen.FindIndex(p => p.Id == pruefung.Id);
+            if (existingIndex >= 0)
+            {
+                _context.Pruefungen[existingIndex] = pruefung;
+                return Task.FromResult(pruefung);
+            }
+            
+            return Task.FromResult<Pruefung>(null);
+        }
+
+        public Task<bool> DeleteAsync(int id)
         {
             var pruefung = _context.Pruefungen.FirstOrDefault(p => p.Id == id);
-            if (pruefung == null)
-                return Task.FromResult(false);
+            if (pruefung != null)
+            {
+                _context.Pruefungen.Remove(pruefung);
+                return Task.FromResult(true);
+            }
             
-            _context.Pruefungen.Remove(pruefung);
-            return Task.FromResult(true);
+            return Task.FromResult(false);
         }
     }
 }

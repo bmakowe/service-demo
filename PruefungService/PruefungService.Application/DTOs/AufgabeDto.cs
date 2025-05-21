@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace PruefungService.Application.DTOs
 {
     public class AufgabeDto

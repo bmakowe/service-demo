@@ -1,194 +1,419 @@
-# Service-Demo mit .NET 8 und Blazor WebAssembly
+# Prüfungsverwaltungssystem mit DDD und Onion-Architektur
 
-Diese Demo zeigt die Implementierung von zwei Mikroservices mit .NET 8 und Blazor WebAssembly, die in Docker-Containern laufen. Sie bietet eine komplette Anwendung zur Verwaltung von Multiple-Choice-Aufgaben und Prüfungen.
+Diese Anwendung implementiert ein modulares System zur Verwaltung von Multiple-Choice-Aufgaben und Prüfungen unter Verwendung moderner Architekturprinzipien wie Domain-Driven Design (DDD) und Onion-Architektur. Sie besteht aus zwei unabhängigen Mikroservices, die über definierte Schnittstellen miteinander kommunizieren.
+
+## Architektur und Technologie-Stack
+
+Das Projekt folgt einer Mikroservice-Architektur mit einer sauberen Trennung zwischen den Services und klaren Verantwortlichkeiten:
+
+```
+┌─────────────────────────┐    ┌────────────────────────┐
+│   AufgabenService       │    │   PruefungService      │
+│   (Onion-Architektur)   │    │   (Onion-Architektur)  │
+│                         │    │                        │
+│  ┌───────────────────┐  │    │  ┌──────────────────┐  │
+│  │     Client        │  │    │  │     Client       │  │
+│  │  (WebAssembly)    │  │    │  │  (WebAssembly)   │  │
+│  └────────┬──────────┘  │    │  └────────┬─────────┘  │
+│           │             │    │           │            │
+│           ▼             │    │           ▼            │
+│  ┌───────────────────┐  │    │  ┌──────────────────┐  │
+│  │       API         │◄─┼────┼──│       API        │  │
+│  └────────┬──────────┘  │    │  └────────┬─────────┘  │
+│           │             │    │           │            │
+│           ▼             │    │           ▼            │
+│  ┌───────────────────┐  │    │  ┌──────────────────┐  │
+│  │ Domain / Anwendung│  │    │  │Domain / Anwendung│  │
+│  └───────────────────┘  │    │  └──────────────────┘  │
+└─────────────────────────┘    └────────────────────────┘
+```
+
+### Technologie-Stack:
+
+- **Backend**: 
+  - ASP.NET Core 8 mit Minimal API
+  - Domain-Driven Design (DDD)
+  - Onion-Architektur
+  - Clean Architecture Prinzipien
+  - AutoMapper für Objekt-Mapping
+
+- **Frontend**: 
+  - Blazor WebAssembly
+  - Component-based Architecture
+  - Services-Pattern für API-Kommunikation
+
+- **Containerisierung**: 
+  - Docker und Docker Compose
+  - Microservice-Isolation
+  - Netzwerkintegration
+
+## Domain-Driven Design (DDD)
+
+Das Projekt implementiert Domain-Driven Design, einen Ansatz zur Softwareentwicklung, der komplexe Domänen durch:
+
+1. **Ubiquitäre Sprache**: Einheitliche Fachsprache über Teams hinweg (z.B. "Aufgabe", "Prüfung", "Antworten")
+2. **Bounded Contexts**: Klare Abgrenzung zwischen AufgabenService und PruefungService
+3. **Entitäten und Wertobjekte**: Unterscheidung zwischen identitätsbasierten (Aufgaben) und attributbasierten Objekten
+4. **Aggregates**: Zusammengehörige Objekte (z.B. Aufgabe mit Antworten) als Einheit verwalten
+
+## Onion-Architektur
+
+Das Projekt folgt der Onion-Architektur (auch bekannt als Clean Architecture oder Ports-and-Adapters) mit folgenden Schichten von innen nach außen:
+
+```
+┌─────────────────────────────────────────────────────┐
+│                                                     │
+│  ┌─────────────────────────────────────────────┐    │
+│  │                                             │    │
+│  │  ┌───────────────────────────────────────┐  │    │
+│  │  │                                       │  │    │
+│  │  │  ┌───────────────────────────────┐    │  │    │
+│  │  │  │                               │    │  │    │
+│  │  │  │        Domain Layer           │    │  │    │
+│  │  │  │     (Entities, Services)      │    │  │    │
+│  │  │  │                               │    │  │    │
+│  │  │  └───────────────────────────────┘    │  │    │
+│  │  │                                       │  │    │
+│  │  │        Application Layer              │  │    │
+│  │  │    (Use Cases, Interfaces, DTOs)      │  │    │
+│  │  │                                       │  │    │
+│  │  └───────────────────────────────────────┘  │    │
+│  │                                             │    │
+│  │          Infrastructure Layer               │    │
+│  │  (Repositories, External Services, DBs)     │    │
+│  │                                             │    │
+│  └─────────────────────────────────────────────┘    │
+│                                                     │
+│               Presentation Layer                    │
+│           (API, UI, External Interfaces)            │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+1. **Domain Layer** (Innerster Kern):
+   - Enthält die Domänenmodelle (Entitäten, Wertobjekte)
+   - Domänen-Services für fachliche Logik
+   - Definiert das Herz des Geschäftsmodells
+   - Keine Abhängigkeiten zu anderen Schichten
+
+2. **Application Layer**:
+   - Implementiert Anwendungsfälle (Use Cases)
+   - Definiert Interfaces für benötigte Funktionen
+   - Orchestriert die Domänenobjekte
+   - Dient als Vermittler zwischen Domain und äußeren Schichten
+   - DTOs für die Datentransformation
+
+3. **Infrastructure Layer**:
+   - Implementiert die Interfaces der Application Layer
+   - Enthält konkrete Implementierungen (Repositories, Services)
+   - Enthält externe Dienste, Datenbanken, ORM-Implementierungen
+   - Nach außen gerichtete Adaption
+
+4. **Presentation Layer**:
+   - API-Endpunkte (Minimal API)
+   - UI (Blazor WebAssembly)
+   - Externe Schnittstellen
+
+### Vorteile der Onion-Architektur:
+
+- **Hohe Testbarkeit**: Die Kernfunktionalität kann unabhängig von Infrastrukturdetails getestet werden
+- **Austauschbarkeit**: Äußere Schichten können ohne Änderung der inneren Schichten ausgetauscht werden
+- **Separation of Concerns**: Klare Trennung der Verantwortlichkeiten
+- **Dependency Rule**: Abhängigkeiten zeigen immer nach innen, nie nach außen
 
 ## Projektstruktur
 
-- **AufgabenService**: Verwaltet eine Liste von Multiple-Choice-Aufgaben
-  - API: `/api/aufgaben` - Endpunkte für Aufgabendaten (CRUD-Operationen)
-  - Client: Blazor WebAssembly-Komponente zur Anzeige und Verwaltung der Aufgaben
-
-- **PruefungService**: Verwaltet Prüfungen
-  - API: `/api/pruefung` - Endpunkte für Prüfungsdaten (CRUD-Operationen)
-  - Client: Blazor WebAssembly-Komponente zur Verwaltung und Durchführung von Prüfungen
-
-## Architektur
-
-Das Projekt folgt einer Mikroservice-Architektur mit folgenden Komponenten:
-
-```
-┌───────────────────┐    ┌───────────────────┐
-│                   │    │                    │
-│  AufgabenService  │    │  PruefungService   │
-│      Client       │    │      Client        │
-│    (Port 5101)    │    │    (Port 5102)     │
-│                   │    │                    │
-└────────┬──────────┘    └────────┬───────────┘
-         │                        │
-         │ HTTP                   │ HTTP
-         │                        │
-┌────────▼──────────┐    ┌────────▼───────────┐
-│                   │    │                     │
-│  AufgabenService  │◄───┤   PruefungService   │
-│       API         │    │        API          │
-│   (Port 5001)     │    │     (Port 5002)     │
-│                   │    │                     │
-└───────────────────┘    └─────────────────────┘
-```
-
-- **Kommunikationsfluss**:
-  - Der PruefungService.API kommuniziert mit dem AufgabenService.API, um Aufgabeninformationen abzurufen
-  - Beide Clients kommunizieren unabhängig mit ihren jeweiligen APIs
-  - Alle Komponenten laufen in separaten Docker-Containern im selben Netzwerk
-
-- **Technologiestack**:
-  - Backend: ASP.NET Core 8 Minimal APIs
-  - Frontend: Blazor WebAssembly
-  - Containerisierung: Docker
-  - Netzwerk: Docker Compose Network
-
-## Datenmodell
+Jeder Service folgt der gleichen grundlegenden Struktur:
 
 ### AufgabenService
 
 ```
-┌─────────────┐       ┌─────────────┐
-│   Aufgabe   │       │   Antwort   │
-├─────────────┤       ├─────────────┤
-│ Id: int     │1     *│ Id: int     │
-│ Frage: str  ├───────┤ Text: str   │
-└─────────────┘       │ IstRichtig: │
-                      │   bool      │
-                      └─────────────┘
+AufgabenService/
+├── AufgabenService.API/                 # Presentation Layer
+│   ├── Program.cs                       # API-Konfiguration und -Endpunkte
+│   └── Dockerfile                       # Container-Definition
+├── AufgabenService.Application/         # Application Layer
+│   ├── DTOs/                            # Data Transfer Objects
+│   │   ├── AufgabeDto.cs
+│   │   ├── AntwortDto.cs
+│   │   └── ...
+│   ├── Exceptions/                      # Anwendungsspezifische Ausnahmen
+│   │   ├── NotFoundException.cs
+│   │   └── ValidationException.cs
+│   ├── Interfaces/                      # Ports für die Infrastruktur
+│   │   ├── IAufgabenRepository.cs
+│   │   └── IAufgabenService.cs
+│   ├── Mapping/                         # Objektmapping-Definitionen
+│   │   └── MappingProfile.cs
+│   └── Services/                        # Anwendungsfälle
+│       └── AufgabenAppService.cs
+├── AufgabenService.Domain/              # Domain Layer
+│   ├── Entities/                        # Domänenmodelle
+│   │   ├── Aufgabe.cs
+│   │   └── Antwort.cs
+│   ├── Exceptions/                      # Domänenspezifische Ausnahmen
+│   │   └── DomainException.cs
+│   ├── Interfaces/                      # Domänenrepositorys
+│   │   └── IAufgabenRepository.cs
+│   └── Services/                        # Domänendienste
+│       └── AufgabenValidierungsService.cs
+├── AufgabenService.Infrastructure/      # Infrastructure Layer
+│   ├── DependencyInjection.cs           # IoC-Containerkonfiguration
+│   └── Persistence/                     # Datenpersistenz
+│       ├── InMemoryContext.cs           # In-Memory-Datenkontext
+│       └── Repositories/                # Repository-Implementierungen
+│           └── AufgabenRepository.cs
+└── AufgabenService.Client/              # Client-Anwendung
+    ├── Models/                          # Client-Modelle
+    ├── Pages/                           # Blazor-Komponenten
+    ├── Services/                        # Client-Services
+    │   ├── Implementations/             # Konkrete Service-Implementierungen
+    │   └── Interfaces/                  # Service-Schnittstellen
+    └── wwwroot/                         # Statische Inhalte
 ```
 
-- **Aufgabe**:
-  - `Id` (int): Eindeutige ID der Aufgabe
-  - `Frage` (string): Text der Frage
-  - `Antworten` (List<Antwort>): Liste der möglichen Antworten
-
-- **Antwort**:
-  - `Id` (int): Eindeutige ID der Antwort innerhalb der Aufgabe
-  - `Text` (string): Text der Antwort
-  - `IstRichtig` (bool): Gibt an, ob dies die richtige Antwort ist
-
 ### PruefungService
+
+Der PruefungService hat eine ähnliche Struktur mit spezifischen Anpassungen für die Prüfungsfunktionalität.
+
+## Datenmodell
+
+### Domänenmodelle
+
+Das System verwendet zwei Hauptdomänen:
+
+#### AufgabenService-Domäne
+
+```
+┌────────────┐       ┌────────────┐
+│  Aufgabe   │       │  Antwort   │
+├────────────┤       ├────────────┤
+│ Id         │1     *│ Id         │
+│ Frage      ├───────┤ Text       │
+└────────────┘       │ IstRichtig │
+                     └────────────┘
+```
+
+- **Aufgabe**: Repräsentiert eine Multiple-Choice-Frage
+  - Hat eine eindeutige ID
+  - Enthält den Fragetext
+  - Enthält eine Sammlung von Antworten
+
+- **Antwort**: Repräsentiert eine mögliche Antwort auf eine Frage
+  - Hat eine eindeutige ID innerhalb einer Aufgabe
+  - Enthält den Antworttext
+  - Flag, ob die Antwort richtig ist
+
+#### PruefungService-Domäne
 
 ```
 ┌─────────────┐       ┌────────────────┐
 │   Pruefung  │       │AufgabenService │
 ├─────────────┤       │    Aufgabe     │
-│ Id: int     │       ├────────────────┤
-│ Titel: str  │    ┌──┤ Id: int        │
-│ AufgabenIds:│----┘  │ Frage: str     │
-│   List<int> │       │ Antworten      │
-│ Datum: date │       └────────────────┘
-│ Zeitlimit:  │
-│   int (min) │
+│ Id          │       ├────────────────┤
+│ Titel       │    ┌──┤ Id             │
+│ AufgabenIds ├────┘  │ Frage          │
+│ Datum       │       │ Antworten      │
+│ Zeitlimit   │       └────────────────┘
 └─────────────┘
 ```
 
-- **Pruefung**:
-  - `Id` (int): Eindeutige ID der Prüfung
-  - `Titel` (string): Titel der Prüfung
-  - `AufgabenIds` (List<int>): Liste der IDs der Aufgaben in der Prüfung
-  - `Datum` (DateTime): Geplantes Datum der Prüfung
-  - `Zeitlimit` (int): Zeitlimit für die Prüfung in Minuten
+- **Pruefung**: Repräsentiert eine Sammlung von Aufgaben mit zeitlicher Begrenzung
+  - Hat eine eindeutige ID
+  - Enthält einen Titel
+  - Verweist auf mehrere Aufgaben durch deren IDs
+  - Hat ein Datum und ein Zeitlimit
 
-## API-Endpunkte
+## Architekturprinzipien
 
-### AufgabenService.API
+### 1. Dependency Inversion Principle (DIP)
 
-| Methode | Endpunkt             | Beschreibung                             |
-|---------|----------------------|------------------------------------------|
-| GET     | /api/aufgaben        | Alle Aufgaben abrufen                    |
-| GET     | /api/aufgaben/{id}   | Eine spezifische Aufgabe abrufen         |
-| POST    | /api/aufgaben        | Neue Aufgabe erstellen                   |
-| PUT     | /api/aufgaben/{id}   | Bestehende Aufgabe aktualisieren         |
-| DELETE  | /api/aufgaben/{id}   | Aufgabe löschen                          |
+Das Projekt wendet das Dependency Inversion Principle konsequent an:
+- Hochrangige Module (Application Services) hängen nicht von niedrigrangigen Modulen (Repositories) ab
+- Beide hängen von Abstraktionen ab (Interfaces)
+- Abstraktionen hängen nicht von Details ab, sondern Details von Abstraktionen
 
-### PruefungService.API
+Beispiel:
+```csharp
+// Application Layer definiert die Schnittstelle
+public interface IAufgabenRepository
+{
+    Task<List<Aufgabe>> GetAlleAufgabenAsync();
+    // ...
+}
 
-| Methode | Endpunkt                      | Beschreibung                                |
-|---------|-------------------------------|---------------------------------------------|
-| GET     | /api/pruefung                 | Alle Prüfungen abrufen                      |
-| GET     | /api/pruefung/{id}            | Eine spezifische Prüfung abrufen            |
-| GET     | /api/pruefung/{id}/aufgaben   | Aufgaben einer Prüfung abrufen              |
-| GET     | /api/aufgaben                 | Alle Aufgaben vom AufgabenService abrufen   |
-| POST    | /api/pruefung                 | Neue Prüfung erstellen                      |
-| PUT     | /api/pruefung/{id}            | Prüfungsdaten aktualisieren                 |
-| PUT     | /api/pruefung/{id}/aufgaben   | Aufgaben einer Prüfung aktualisieren        |
-| DELETE  | /api/pruefung/{id}            | Prüfung löschen                             |
+// Infrastructure Layer implementiert die Schnittstelle
+public class AufgabenRepository : IAufgabenRepository
+{
+    // Implementation...
+}
+
+// Application Layer verwendet die Abstraktion
+public class AufgabenAppService
+{
+    private readonly IAufgabenRepository _repository;
+    
+    public AufgabenAppService(IAufgabenRepository repository)
+    {
+        _repository = repository;
+    }
+    // ...
+}
+```
+
+### 2. Single Responsibility Principle (SRP)
+
+Jede Klasse hat eine einzige Verantwortung:
+- **Repositories**: Datenzugriff
+- **Application Services**: Anwendungslogik
+- **Domain Services**: Domänenlogik
+- **Mapping Profile**: Objektmapping
+- **API-Endpunkte**: Kommunikation mit Clients
+
+### 3. Open/Closed Principle (OCP)
+
+Das System ist offen für Erweiterungen, aber geschlossen für Änderungen:
+- Neue Funktionalität kann durch Hinzufügen neuer Klassen implementiert werden
+- Bestehende Funktionalität muss nicht geändert werden
+
+### 4. Interface Segregation Principle (ISP)
+
+Clients werden nicht gezwungen, von Interfaces abzuhängen, die sie nicht verwenden:
+- Separate Interfaces für verschiedene Aspekte
+- Spezifische Interfaces für spezifische Clients
+
+### 5. Liskov Substitution Principle (LSP)
+
+Subtypen können überall anstelle ihres Basistyps verwendet werden.
 
 ## Features und Funktionalitäten
 
 ### AufgabenService
-- Erstellen neuer Multiple-Choice-Aufgaben mit beliebig vielen Antwortoptionen
-- Bearbeiten bestehender Aufgaben (Frage und Antworten)
-- Löschen von Aufgaben
-- Markieren der richtigen Antwort
+- Erstellen, Bearbeiten und Löschen von Multiple-Choice-Aufgaben
+- Verwaltung von Antwortoptionen
+- Markieren der richtigen Antworten
+- Validierung der Eingaben
 
 ### PruefungService
-- Erstellen neuer Prüfungen mit Titel, Datum und Zeitlimit
-- Zuweisen von Aufgaben zu Prüfungen
-- Durchführen von Prüfungen mit Countdown-Timer
-- Auswerten von Ergebnissen
+- Erstellen, Bearbeiten und Löschen von Prüfungen
+- Auswahl und Zuweisung von Aufgaben aus dem AufgabenService
+- Durchführung von Prüfungen mit Zeitbegrenzung
+- Bewertung der Ergebnisse
 
-## Voraussetzungen
+## Kommunikationsfluss
 
-- [Docker](https://www.docker.com/products/docker-desktop)
-- [Docker Compose](https://docs.docker.com/compose/install/)
+Die Services kommunizieren über HTTP-APIs:
+- Der PruefungService ruft den AufgabenService auf, um verfügbare Aufgaben zu ermitteln
+- Beide Services bieten Clients über RESTful APIs Zugriff auf ihre Funktionen
+- Die Clients (Blazor WebAssembly) kommunizieren nur mit ihrem jeweiligen Service
 
-## Starten der Anwendung
-
-1. Navigiere zum Hauptverzeichnis (wo sich die `docker-compose.yml`-Datei befindet)
-2. Führe folgenden Befehl aus:
-
-```bash
-docker-compose up --build
+```
+┌───────────────┐       ┌────────────────┐
+│ Aufgaben-     │       │ Prüfungs-      │
+│ Client        │       │ Client         │
+└───────┬───────┘       └────────┬───────┘
+        │                        │
+        │ HTTP                   │ HTTP
+        ▼                        ▼
+┌───────────────┐       ┌────────────────┐
+│ Aufgaben-     │◄──────┤ Prüfungs-      │
+│ Service API   │  HTTP │ Service API    │
+└───────────────┘       └────────────────┘
 ```
 
-3. Nach dem erfolgreichen Start sind die Services unter folgenden URLs erreichbar:
-   - AufgabenService API: http://localhost:5001/api/aufgaben
-   - AufgabenService Client: http://localhost:5101
-   - PruefungService API: http://localhost:5002/api/pruefung
-   - PruefungService Client: http://localhost:5102
+## Deployment mit Docker
 
-## Nutzung
+Das Projekt ist vollständig containerisiert und kann mit Docker Compose gestartet werden:
 
-### Aufgaben verwalten
-1. Öffne den AufgabenService Client unter http://localhost:5101
-2. Verwende "Neue Aufgabe erstellen", um eine neue Multiple-Choice-Frage hinzuzufügen
-3. Füge mehrere Antwortoptionen hinzu und markiere die richtige Antwort
-4. Speichere die Aufgabe
+```
+services:
+  aufgaben-api:
+    build:
+      context: ./AufgabenService
+      dockerfile: AufgabenService.API/Dockerfile
+    ports:
+      - "5001:8080"
+    networks:
+      - microservice-network
 
-### Prüfungen verwalten und durchführen
-1. Öffne den PruefungService Client unter http://localhost:5102
-2. Erstelle eine neue Prüfung mit "Neue Prüfung erstellen"
-3. Weise bestehende Aufgaben der Prüfung zu
-4. Starte die Prüfung mit dem "Prüfung starten"-Button
-5. Beantworte die Fragen innerhalb des Zeitlimits
-6. Schließe die Prüfung ab, um die Ergebnisse zu sehen
+  aufgaben-client:
+    build:
+      context: ./AufgabenService/AufgabenService.Client
+      dockerfile: Dockerfile
+    ports:
+      - "5101:80"
+    depends_on:
+      - aufgaben-api
+    networks:
+      - microservice-network
+    environment:
+      - AufgabenApiUrl=http://aufgaben-api:8080
 
-## Dienste herunterfahren
+  pruefung-api:
+    build:
+      context: ./PruefungService/PruefungService.API
+      dockerfile: Dockerfile
+    ports:
+      - "5002:8080"
+    networks:
+      - microservice-network
+    depends_on:
+      - aufgaben-api
 
-Um alle Container zu stoppen, führe folgenden Befehl aus:
+  pruefung-client:
+    build:
+      context: ./PruefungService/PruefungService.Client
+      dockerfile: Dockerfile
+    ports:
+      - "5102:80"
+    depends_on:
+      - pruefung-api
+    networks:
+      - microservice-network
+    environment:
+      - PruefungApiUrl=http://pruefung-api:8080
 
-```bash
-docker-compose down
+networks:
+  microservice-network:
+    driver: bridge
 ```
 
-## Technische Details
+## Zugriff auf die Anwendung
 
-- Die Services laufen in separaten Docker-Containern
-- Die Kommunikation zwischen den Services erfolgt über REST-APIs
-- Die Frontends sind mit Blazor WebAssembly entwickelt
-- Das Backend verwendet ASP.NET Core Minimal APIs
-- Die Daten werden nur im Arbeitsspeicher (In-Memory) gespeichert
+Nach dem Start der Container sind die Anwendungen unter folgenden URLs erreichbar:
+
+- **AufgabenService API**: http://localhost:5001
+  - Swagger-Dokumentation: http://localhost:5001/swagger
+- **AufgabenService Client**: http://localhost:5101
+- **PruefungService API**: http://localhost:5002
+  - Swagger-Dokumentation: http://localhost:5002/swagger
+- **PruefungService Client**: http://localhost:5102
+
+## Voraussetzungen und Starten der Anwendung
+
+### Voraussetzungen:
+- Docker und Docker Compose
+- Git (für das Klonen des Repositories)
+
+### Starten:
+1. Repository klonen
+2. In das Projektverzeichnis wechseln
+3. `docker-compose up -d --build` ausführen
+4. Auf die oben genannten URLs zugreifen
+
+### Stoppen:
+- `docker-compose down` zum Stoppen und Entfernen der Container
 
 ## Erweiterungsmöglichkeiten
 
-- Persistente Datenspeicherung mit einer Datenbank
-- Benutzerauthentifizierung und Berechtigungen
-- Detaillierte Auswertung von Prüfungsergebnissen
-- Export/Import von Aufgaben und Prüfungen
+Das Projekt bietet verschiedene Erweiterungsmöglichkeiten:
+
+1. **Persistente Datenhaltung**: Ersetzen der In-Memory-Speicherung durch eine Datenbank
+2. **Authentifizierung und Autorisierung**: Benutzerverwaltung und Zugriffsrechte
+3. **Erweiterte Auswertung**: Detaillierte Statistiken und Berichte
+4. **Weitere Fragetypen**: Unterstützung für verschiedene Aufgabenformate
+5. **Import/Export**: Austausch von Daten mit externen Systemen
+
+## Fazit
+
+Dieses Projekt demonstriert den Einsatz moderner Architekturprinzipien wie Domain-Driven Design und Onion-Architektur in einer Microservice-Umgebung. Durch die klare Trennung der Verantwortlichkeiten und die sorgfältig gestalteten Schnittstellen zwischen den Schichten bietet es ein robustes, testbares und wartbares System für die Verwaltung von Aufgaben und Prüfungen.

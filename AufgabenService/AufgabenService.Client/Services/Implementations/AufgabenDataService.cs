@@ -1,4 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Net.Http;
 using System.Net.Http.Json;
+using System.Threading.Tasks;
 using AufgabenService.Client.Models;
 using AufgabenService.Client.Services.Interfaces;
 
@@ -13,44 +17,76 @@ namespace AufgabenService.Client.Services.Implementations
             _httpClient = httpClient;
         }
 
-        public async Task<List<AufgabenViewModel>> GetAlleAufgabenAsync()
+        public async Task<IEnumerable<AufgabeViewModel>> GetAllAufgabenAsync()
         {
-            return await _httpClient.GetFromJsonAsync<List<AufgabenViewModel>>("api/aufgaben") ?? new List<AufgabenViewModel>();
-        }
-
-        public async Task<AufgabenViewModel?> GetAufgabeByIdAsync(int id)
-        {
-            return await _httpClient.GetFromJsonAsync<AufgabenViewModel>($"api/aufgaben/{id}");
-        }
-
-        public async Task<AufgabenViewModel?> CreateAufgabeAsync(AufgabeErstellenModel aufgabeDto)
-        {
-            var response = await _httpClient.PostAsJsonAsync("api/aufgaben", aufgabeDto);
-            
-            if (response.IsSuccessStatusCode)
+            try
             {
-                return await response.Content.ReadFromJsonAsync<AufgabenViewModel>();
+                var response = await _httpClient.GetFromJsonAsync<List<AufgabeViewModel>>("api/aufgaben");
+                return response ?? new List<AufgabeViewModel>();
             }
-            
-            return null;
+            catch (Exception)
+            {
+                // In einer produktiven Anwendung würde man hier entsprechend loggen
+                // und möglicherweise eine benutzerdefinierte Exception zurückgeben
+                return new List<AufgabeViewModel>();
+            }
         }
 
-        public async Task<AufgabenViewModel?> UpdateAufgabeAsync(int id, AufgabeErstellenModel aufgabeDto)
+        public async Task<AufgabeViewModel> GetAufgabeByIdAsync(int id)
         {
-            var response = await _httpClient.PutAsJsonAsync($"api/aufgaben/{id}", aufgabeDto);
-            
-            if (response.IsSuccessStatusCode)
+            try
             {
-                return await response.Content.ReadFromJsonAsync<AufgabenViewModel>();
+                return await _httpClient.GetFromJsonAsync<AufgabeViewModel>($"api/aufgaben/{id}");
             }
-            
-            return null;
+            catch (Exception)
+            {
+                // Fehlerbehandlung
+                return null;
+            }
+        }
+
+        public async Task<AufgabeViewModel> CreateAufgabeAsync(AufgabeErstellenModel aufgabe)
+        {
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync("api/aufgaben", aufgabe);
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadFromJsonAsync<AufgabeViewModel>();
+            }
+            catch (Exception)
+            {
+                // Fehlerbehandlung
+                return null;
+            }
+        }
+
+        public async Task<AufgabeViewModel> UpdateAufgabeAsync(int id, AufgabeErstellenModel aufgabe)
+        {
+            try
+            {
+                var response = await _httpClient.PutAsJsonAsync($"api/aufgaben/{id}", aufgabe);
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadFromJsonAsync<AufgabeViewModel>();
+            }
+            catch (Exception)
+            {
+                // Fehlerbehandlung
+                return null;
+            }
         }
 
         public async Task<bool> DeleteAufgabeAsync(int id)
         {
-            var response = await _httpClient.DeleteAsync($"api/aufgaben/{id}");
-            return response.IsSuccessStatusCode;
+            try
+            {
+                var response = await _httpClient.DeleteAsync($"api/aufgaben/{id}");
+                return response.IsSuccessStatusCode;
+            }
+            catch (Exception)
+            {
+                // Fehlerbehandlung
+                return false;
+            }
         }
     }
 }

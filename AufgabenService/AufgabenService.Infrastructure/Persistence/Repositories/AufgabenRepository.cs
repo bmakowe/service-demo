@@ -1,97 +1,66 @@
-using AufgabenService.Application.Interfaces;
-using AufgabenService.Domain.Entities;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using AufgabenService.Domain.Entities;
+using AufgabenService.Application.Interfaces;
 
 namespace AufgabenService.Infrastructure.Persistence.Repositories
 {
     public class AufgabenRepository : IAufgabenRepository
     {
-        private readonly List<Aufgabe> _aufgaben = new()
+        private readonly InMemoryContext _context;
+        private int _nextId;
+
+        public AufgabenRepository(InMemoryContext context)
         {
-            new Aufgabe
+            _context = context;
+            _nextId = _context.Aufgaben.Count > 0 ? _context.Aufgaben.Max(a => a.Id) + 1 : 1;
+        }
+
+        public Task<IEnumerable<Aufgabe>> GetAllAsync()
+        {
+            return Task.FromResult<IEnumerable<Aufgabe>>(_context.Aufgaben);
+        }
+
+        public Task<Aufgabe> GetByIdAsync(int id)
+        {
+            var aufgabe = _context.Aufgaben.FirstOrDefault(a => a.Id == id);
+            if (aufgabe == null)
             {
-                Id = 1,
-                Frage = "Was ist die Hauptstadt von Deutschland?",
-                Antworten = new List<Antwort>
-                {
-                    new() { Id = 1, Text = "Berlin", IstRichtig = true },
-                    new() { Id = 2, Text = "München", IstRichtig = false },
-                    new() { Id = 3, Text = "Hamburg", IstRichtig = false },
-                    new() { Id = 4, Text = "Köln", IstRichtig = false }
-                }
-            },
-            new Aufgabe
-            {
-                Id = 2,
-                Frage = "Welche Programmiersprache wird für ASP.NET Core verwendet?",
-                Antworten = new List<Antwort>
-                {
-                    new() { Id = 1, Text = "Java", IstRichtig = false },
-                    new() { Id = 2, Text = "C#", IstRichtig = true },
-                    new() { Id = 3, Text = "Python", IstRichtig = false },
-                    new() { Id = 4, Text = "JavaScript", IstRichtig = false }
-                }
-            },
-            new Aufgabe
-            {
-                Id = 3,
-                Frage = "Wie viele Bits hat ein Byte?",
-                Antworten = new List<Antwort>
-                {
-                    new() { Id = 1, Text = "4", IstRichtig = false },
-                    new() { Id = 2, Text = "8", IstRichtig = true },
-                    new() { Id = 3, Text = "16", IstRichtig = false },
-                    new() { Id = 4, Text = "32", IstRichtig = false }
-                }
+                throw new KeyNotFoundException($"Aufgabe mit ID {id} wurde nicht gefunden.");
             }
-        };
-        
-        public Task<List<Aufgabe>> GetAlleAufgabenAsync()
-        {
-            return Task.FromResult(_aufgaben.ToList());
-        }
-
-        public Task<Aufgabe?> GetAufgabeByIdAsync(int id)
-        {
-            return Task.FromResult(_aufgaben.FirstOrDefault(a => a.Id == id));
-        }
-
-        public Task<Aufgabe> CreateAufgabeAsync(Aufgabe aufgabe)
-        {
-            int neueId = _aufgaben.Count > 0 ? _aufgaben.Max(a => a.Id) + 1 : 1;
-            aufgabe.Id = neueId;
-            
-            _aufgaben.Add(aufgabe);
-            
             return Task.FromResult(aufgabe);
         }
 
-        public Task<Aufgabe?> UpdateAufgabeAsync(Aufgabe aufgabe)
+        public Task<Aufgabe> AddAsync(Aufgabe aufgabe)
         {
-            var existierendeAufgabe = _aufgaben.FirstOrDefault(a => a.Id == aufgabe.Id);
-            if (existierendeAufgabe == null)
-            {
-                return Task.FromResult<Aufgabe?>(null);
-            }
-            
-            int index = _aufgaben.IndexOf(existierendeAufgabe);
-            _aufgaben[index] = aufgabe;
-            
-            return Task.FromResult<Aufgabe?>(aufgabe);
+            aufgabe.SetId(_nextId++);
+            _context.Aufgaben.Add(aufgabe);
+            return Task.FromResult(aufgabe);
         }
 
-        public Task<bool> DeleteAufgabeAsync(int id)
+        public Task<Aufgabe> UpdateAsync(Aufgabe aufgabe)
         {
-            var aufgabe = _aufgaben.FirstOrDefault(a => a.Id == id);
-            if (aufgabe == null)
+            var existingIndex = _context.Aufgaben.FindIndex(a => a.Id == aufgabe.Id);
+            if (existingIndex >= 0)
             {
-                return Task.FromResult(false);
+                _context.Aufgaben[existingIndex] = aufgabe;
+                return Task.FromResult(aufgabe);
             }
             
-            _aufgaben.Remove(aufgabe);
-            return Task.FromResult(true);
+            throw new KeyNotFoundException($"Aufgabe mit ID {aufgabe.Id} wurde nicht gefunden.");
+        }
+
+        public Task<bool> DeleteAsync(int id)
+        {
+            var aufgabe = _context.Aufgaben.FirstOrDefault(a => a.Id == id);
+            if (aufgabe != null)
+            {
+                _context.Aufgaben.Remove(aufgabe);
+                return Task.FromResult(true);
+            }
+            
+            return Task.FromResult(false);
         }
     }
 }

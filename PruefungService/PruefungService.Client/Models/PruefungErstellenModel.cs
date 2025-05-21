@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace PruefungService.Client.Models
 {
     public class PruefungErstellenModel

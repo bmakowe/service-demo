@@ -1,39 +1,53 @@
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+
 namespace PruefungService.Domain.ValueObjects
 {
-    // Diese Klasse repräsentiert eine Aufgabe, die vom AufgabenService abgerufen wird
-    // Es ist ein Value Object, keine Domain-Entity, da es nur eine Kopie der Daten
-    // aus dem anderen Service darstellt
     public class Aufgabe
     {
-        public int Id { get; private set; }
-        public string Frage { get; private set; }
-        public IReadOnlyCollection<Antwort> Antworten { get; private set; }
+        public int Id { get; set; }
+        public string Frage { get; set; } = string.Empty;
+        
+        // Private Liste für die Antworten
+        private List<Antwort> _antworten = new();
+        
+        // Öffentliche ReadOnly-Property für Antworten
+        public IReadOnlyCollection<Antwort> Antworten => _antworten.AsReadOnly();
+        
 
-        // Private Constructor für Deserialisierung
-        private Aufgabe() { }
-
-        public Aufgabe(int id, string frage, IEnumerable<Antwort> antworten)
+        public Aufgabe()
         {
-            Id = id;
-            Frage = frage;
-            Antworten = antworten.ToList().AsReadOnly();
+            Frage = string.Empty;
+            _antworten = new List<Antwort>();
         }
-    }
-
-    public class Antwort
-    {
-        public int Id { get; private set; }
-        public string Text { get; private set; }
-        public bool IstRichtig { get; private set; }
-
-        // Private Constructor für Deserialisierung
-        private Antwort() { }
-
-        public Antwort(int id, string text, bool istRichtig)
+        
+        // Methode zum Hinzufügen von Antworten
+        public void AddAntwort(Antwort antwort)
         {
-            Id = id;
-            Text = text;
-            IstRichtig = istRichtig;
+            _antworten.Add(antwort);
+        }
+        
+        // Methode zum Entfernen von Antworten
+        public void RemoveAntwort(Antwort antwort)
+        {
+            _antworten.Remove(antwort);
+        }
+        
+        // Methode zum Aktualisieren der Antwortenliste
+        public void SetAntworten(List<Antwort> antworten)
+        {
+            _antworten.Clear();
+            if (antworten != null)
+            {
+                _antworten.AddRange(antworten);
+            }
+        }
+        
+        // Falls du eine Property für die Liste selbst brauchst (z.B. für Serialisierung)
+        public List<Antwort> GetAntwortListe()
+        {
+            return _antworten.ToList(); // Gibt eine Kopie zurück
         }
     }
 }

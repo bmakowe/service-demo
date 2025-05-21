@@ -8,6 +8,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\PruefungService.Domain\PruefungService.Domain.csproj" />
+    <ProjectReference Include="..\PruefungService.Application\PruefungService.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.0" />
   </ItemGroup>
 
 </Project>

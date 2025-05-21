@@ -1,15 +1,15 @@
-using AufgabenService.Domain.Entities;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using AufgabenService.Domain.Entities;
 
 namespace AufgabenService.Application.Interfaces
 {
     public interface IAufgabenRepository
     {
-        Task<List<Aufgabe>> GetAlleAufgabenAsync();
-        Task<Aufgabe?> GetAufgabeByIdAsync(int id);
-        Task<Aufgabe> CreateAufgabeAsync(Aufgabe aufgabe);
-        Task<Aufgabe?> UpdateAufgabeAsync(Aufgabe aufgabe);
-        Task<bool> DeleteAufgabeAsync(int id);
+        Task<IEnumerable<Aufgabe>> GetAllAsync();
+        Task<Aufgabe> GetByIdAsync(int id);
+        Task<Aufgabe> AddAsync(Aufgabe aufgabe);
+        Task<Aufgabe> UpdateAsync(Aufgabe aufgabe);
+        Task<bool> DeleteAsync(int id);
     }
 }

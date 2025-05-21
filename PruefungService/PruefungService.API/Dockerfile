@@ -5,9 +5,21 @@ EXPOSE 443
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY ["PruefungService.API.csproj", "./"]
-RUN dotnet restore "PruefungService.API.csproj"
+
+# Kopiere alle Projekt-Dateien in die entsprechenden Verzeichnisse
+COPY ["PruefungService.API/PruefungService.API.csproj", "PruefungService.API/"]
+COPY ["PruefungService.Application/PruefungService.Application.csproj", "PruefungService.Application/"]
+COPY ["PruefungService.Domain/PruefungService.Domain.csproj", "PruefungService.Domain/"]
+COPY ["PruefungService.Infrastructure/PruefungService.Infrastructure.csproj", "PruefungService.Infrastructure/"]
+
+# Restore packages
+RUN dotnet restore "PruefungService.API/PruefungService.API.csproj"
+
+# Kopiere den gesamten Quellcode
 COPY . .
+
+# Build
+WORKDIR "/src/PruefungService.API"
 RUN dotnet build "PruefungService.API.csproj" -c Release -o /app/build
 
 FROM build AS publish

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace PruefungService.Client.Models
 {
     public class AufgabeViewModel

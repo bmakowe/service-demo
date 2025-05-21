@@ -1,28 +1,34 @@
+using System;
+using System.Linq;
 using AufgabenService.Domain.Entities;
+using AufgabenService.Domain.Exceptions;
 
 namespace AufgabenService.Domain.Services
 {
     public class AufgabenValidierungsService
     {
-        public bool IstAufgabeGueltig(Aufgabe aufgabe)
+        public static void ValidateAufgabe(Aufgabe aufgabe)
         {
-            // Mindestens 2 Antworten erforderlich
-            if (aufgabe.Antworten.Count < 2)
-                return false;
-            
-            // Eine Antwort muss als richtig markiert sein
-            if (!aufgabe.Antworten.Any(a => a.IstRichtig))
-                return false;
-            
-            // Frage darf nicht leer sein
+            if (aufgabe == null)
+                throw new ArgumentNullException(nameof(aufgabe));
+
             if (string.IsNullOrWhiteSpace(aufgabe.Frage))
-                return false;
-            
-            // Alle Antworttexte müssen gefüllt sein
-            if (aufgabe.Antworten.Any(a => string.IsNullOrWhiteSpace(a.Text)))
-                return false;
-            
-            return true;
+                throw new DomainException("Eine Aufgabe muss eine Frage haben.");
+
+            if (aufgabe.Antworten == null || aufgabe.Antworten.Count < 2)
+                throw new DomainException("Eine Aufgabe muss mindestens zwei Antworten haben.");
+
+            if (!aufgabe.Antworten.Any(a => a.IstRichtig))
+                throw new DomainException("Mindestens eine Antwort muss als richtig markiert sein.");
+                
+            if (aufgabe.Antworten.Count(a => a.IstRichtig) > 1)
+                throw new DomainException("Es darf nur eine richtige Antwort geben.");
+
+            foreach (var antwort in aufgabe.Antworten)
+            {
+                if (string.IsNullOrWhiteSpace(antwort.Text))
+                    throw new DomainException("Alle Antworten müssen einen Text haben.");
+            }
         }
     }
 }

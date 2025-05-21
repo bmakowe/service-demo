@@ -1,142 +1,143 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using PruefungService.Application.DTOs;
 using PruefungService.Application.Exceptions;
 using PruefungService.Application.Interfaces;
 using PruefungService.Domain.Entities;
-using PruefungService.Domain.Interfaces;
-using PruefungService.Domain.Services;
-using PruefungService.Domain.ValueObjects;
+using PruefungService.Domain.Services; // Für PruefungValidierungsService, falls existiert
+using PruefungService.Domain.ValueObjects; // Für Aufgabe, wenn es ein ValueObject ist
+using PruefungService.Domain.Interfaces; // Für IAufgabenService, falls existiert
 
 namespace PruefungService.Application.Services
 {
     public class PruefungAppService : IPruefungAppService
     {
-        private readonly IPruefungRepository _pruefungRepository;
-        private readonly IAufgabenService _aufgabenService;
-        private readonly PruefungValidierungsService _validierungsService;
-
+        private readonly IPruefungRepository _repository;
+        private readonly IAufgabenServiceClient _aufgabenServiceClient; // Verwende IAufgabenServiceClient statt IAufgabenService
+        
         public PruefungAppService(
-            IPruefungRepository pruefungRepository,
-            IAufgabenService aufgabenService,
-            PruefungValidierungsService validierungsService)
+            IPruefungRepository repository,
+            IAufgabenServiceClient aufgabenServiceClient) // Korrigierte Abhängigkeit
         {
-            _pruefungRepository = pruefungRepository;
-            _aufgabenService = aufgabenService;
-            _validierungsService = validierungsService;
+            _repository = repository;
+            _aufgabenServiceClient = aufgabenServiceClient;
         }
 
-        public async Task<IEnumerable<PruefungDto>> GetAllePruefungenAsync()
+        public async Task<IEnumerable<PruefungDto>> GetAllPruefungenAsync()
         {
-            var pruefungen = await _pruefungRepository.GetAllePruefungenAsync();
-            return pruefungen.Select(MapToPruefungDto);
+            var pruefungen = await _repository.GetAllAsync();
+            return pruefungen.Select(MapToDto);
         }
 
-        public async Task<PruefungDto?> GetPruefungByIdAsync(int id)
+        public async Task<PruefungDto> GetPruefungByIdAsync(int id)
         {
-            var pruefung = await _pruefungRepository.GetPruefungByIdAsync(id);
-            return pruefung != null ? MapToPruefungDto(pruefung) : null;
+            try
+            {
+                var pruefung = await _repository.GetByIdAsync(id);
+                return MapToDto(pruefung);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                throw new NotFoundException(ex.Message, ex);
+            }
         }
 
-        public async Task<IEnumerable<AufgabeDto>> GetAufgabenFuerPruefungAsync(int pruefungId)
+        public async Task<IEnumerable<AufgabeDto>> GetAufgabenForPruefungAsync(int pruefungId)
         {
-            var pruefung = await _pruefungRepository.GetPruefungByIdAsync(pruefungId);
-            if (pruefung == null)
-                throw new NotFoundException("Pruefung", pruefungId);
-
-            var aufgaben = await _aufgabenService.GetAufgabenByIdsAsync(pruefung.AufgabenIds);
-            return aufgaben.Select(MapToAufgabeDto);
+            try
+            {
+                var pruefung = await _repository.GetByIdAsync(pruefungId);
+                
+                if (!pruefung.AufgabenIds.Any())
+                    return new List<AufgabeDto>();
+                
+                var aufgaben = await _aufgabenServiceClient.GetAufgabenByIdsAsync(pruefung.AufgabenIds);
+                return aufgaben;
+            }
+            catch (KeyNotFoundException ex)
+            {
+                throw new NotFoundException(ex.Message, ex);
+            }
         }
 
-        public async Task<IEnumerable<AufgabeDto>> GetAlleAufgabenAsync()
+        public async Task<PruefungDto> CreatePruefungAsync(PruefungErstellenDto pruefungDto)
         {
-            var aufgaben = await _aufgabenService.GetAufgabenAsync();
-            return aufgaben.Select(MapToAufgabeDto);
-        }
+            if (pruefungDto == null)
+                throw new ValidationException("Prüfungsdaten wurden nicht übermittelt.");
 
-        public async Task<PruefungDto> ErstellePruefungAsync(PruefungErstellenDto pruefungDto)
-        {
-            // Domain-Entität erstellen
             var pruefung = new Pruefung(
                 pruefungDto.Titel,
                 pruefungDto.Datum,
-                pruefungDto.Zeitlimit
+                pruefungDto.Zeitlimit,
+                pruefungDto.AufgabenIds?.ToList() ?? new List<int>()
             );
-            
-            // Aufgaben zuweisen, wenn vorhanden
-            if (pruefungDto.AufgabenIds != null && pruefungDto.AufgabenIds.Any())
-            {
-                pruefung.SetzeAufgaben(pruefungDto.AufgabenIds);
-            }
-            
-            // Validieren
-            if (!_validierungsService.IstPruefungGueltig(pruefung))
-                throw new ValidationException("Die Prüfung ist nicht gültig.");
-            
-            // Persistieren
-            var erstelltePruefung = await _pruefungRepository.ErstellePruefungAsync(pruefung);
-            
-            return MapToPruefungDto(erstelltePruefung);
+
+            var createdPruefung = await _repository.AddAsync(pruefung);
+            return MapToDto(createdPruefung);
         }
 
-        public async Task<PruefungDto?> AktualisierePruefungAsync(int id, PruefungAktualisierenDto pruefungDto)
+        public async Task<PruefungDto> UpdatePruefungAsync(int id, PruefungAktualisierenDto pruefungDto)
         {
-            // Bestehende Prüfung abrufen
-            var bestehendePruefung = await _pruefungRepository.GetPruefungByIdAsync(id);
-            if (bestehendePruefung == null)
-                return null;
-            
-            // Prüfung aktualisieren
-            if (!string.IsNullOrWhiteSpace(pruefungDto.Titel))
+            if (pruefungDto == null)
+                throw new ValidationException("Prüfungsdaten wurden nicht übermittelt.");
+
+            try
             {
-                bestehendePruefung.AendereTitel(pruefungDto.Titel);
+                var pruefung = await _repository.GetByIdAsync(id);
+                
+                if (!string.IsNullOrEmpty(pruefungDto.Titel))
+                    pruefung.UpdateTitel(pruefungDto.Titel);
+                
+                if (pruefungDto.Datum != default)
+                    pruefung.UpdateDatum(pruefungDto.Datum);
+                
+                if (pruefungDto.Zeitlimit > 0)
+                    pruefung.UpdateZeitlimit(pruefungDto.Zeitlimit);
+
+                var updatedPruefung = await _repository.UpdateAsync(pruefung);
+                return MapToDto(updatedPruefung);
             }
-            
-            if (pruefungDto.Datum != default)
+            catch (KeyNotFoundException ex)
             {
-                bestehendePruefung.AendereDatum(pruefungDto.Datum);
+                throw new NotFoundException(ex.Message, ex);
             }
-            
-            if (pruefungDto.Zeitlimit > 0)
-            {
-                bestehendePruefung.AendereZeitlimit(pruefungDto.Zeitlimit);
-            }
-            
-            // Validieren
-            if (!_validierungsService.IstPruefungGueltig(bestehendePruefung))
-                throw new ValidationException("Die aktualisierte Prüfung ist nicht gültig.");
-            
-            // Persistieren
-            var aktualisierte = await _pruefungRepository.AktualisierePruefungAsync(bestehendePruefung);
-            
-            return aktualisierte != null ? MapToPruefungDto(aktualisierte) : null;
         }
 
-        public async Task<PruefungDto?> WeiseAufgabenZuAsync(int id, AufgabenZuweisenDto aufgabenDto)
+        public async Task<PruefungDto> UpdatePruefungAufgabenAsync(int id, AufgabenZuweisenDto aufgabenDto)
         {
-            // Bestehende Prüfung abrufen
-            var bestehendePruefung = await _pruefungRepository.GetPruefungByIdAsync(id);
-            if (bestehendePruefung == null)
-                return null;
-            
-            // Aufgaben zuweisen
-            bestehendePruefung.SetzeAufgaben(aufgabenDto.AufgabenIds);
-            
-            // Validieren
-            if (!_validierungsService.IstPruefungGueltig(bestehendePruefung))
-                throw new ValidationException("Die Prüfung ist nach der Zuweisung der Aufgaben nicht gültig.");
-            
-            // Persistieren
-            var aktualisierte = await _pruefungRepository.AktualisierePruefungAsync(bestehendePruefung);
-            
-            return aktualisierte != null ? MapToPruefungDto(aktualisierte) : null;
+            if (aufgabenDto == null)
+                throw new ValidationException("Aufgabendaten wurden nicht übermittelt.");
+
+            try
+            {
+                var pruefung = await _repository.GetByIdAsync(id);
+                pruefung.UpdateAufgabenIds(aufgabenDto.AufgabenIds);
+
+                var updatedPruefung = await _repository.UpdateAsync(pruefung);
+                return MapToDto(updatedPruefung);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                throw new NotFoundException(ex.Message, ex);
+            }
         }
 
-        public async Task<bool> LoeschePruefungAsync(int id)
+        public async Task<bool> DeletePruefungAsync(int id)
         {
-            return await _pruefungRepository.LoeschePruefungAsync(id);
+            try
+            {
+                await _repository.GetByIdAsync(id);
+                return await _repository.DeleteAsync(id);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                throw new NotFoundException(ex.Message, ex);
+            }
         }
 
-        // Mapping-Methoden
-        private PruefungDto MapToPruefungDto(Pruefung pruefung)
+        private PruefungDto MapToDto(Pruefung pruefung)
         {
             return new PruefungDto
             {
@@ -145,21 +146,6 @@ namespace PruefungService.Application.Services
                 AufgabenIds = pruefung.AufgabenIds.ToList(),
                 Datum = pruefung.Datum,
                 Zeitlimit = pruefung.Zeitlimit
-            };
-        }
-
-        private AufgabeDto MapToAufgabeDto(Aufgabe aufgabe)
-        {
-            return new AufgabeDto
-            {
-                Id = aufgabe.Id,
-                Frage = aufgabe.Frage,
-                Antworten = aufgabe.Antworten.Select(a => new AntwortDto
-                {
-                    Id = a.Id,
-                    Text = a.Text,
-                    IstRichtig = a.IstRichtig
-                }).ToList()
             };
         }
     }

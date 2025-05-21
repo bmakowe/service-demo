@@ -1,7 +1,10 @@
 @page "/"
+@inject IPruefungDataService PruefungService
 @inject IJSRuntime JS
 @using PruefungService.Client.Models
 @using PruefungService.Client.Services.Interfaces
+@using System.Text.Json
+@using System.Text.Json.Serialization
 
 @if (pruefungen == null || alleAufgaben == null)
 {
@@ -13,19 +16,19 @@ else if (errorMessage != null)
         @errorMessage
     </div>
 }
-else if (pruefungsDurchfuehrungsService.AktuellePruefung != null && pruefungsDurchfuehrungsService.AktuellePruefungsaufgaben != null)
+else if (aktuellePruefungsaufgaben != null)
 {
     <div class="mb-4">
-        <h2>@pruefungsDurchfuehrungsService.AktuellePruefung.Titel</h2>
-        <p>Zeitlimit: @pruefungsDurchfuehrungsService.AktuellePruefung.Zeitlimit Minuten</p>
-        <p>Verbleibende Zeit: @pruefungsDurchfuehrungsService.VerbleibendeZeit Sekunden</p>
+        <h2>@aktuellePruefung?.Titel</h2>
+        <p>Zeitlimit: @aktuellePruefung?.Zeitlimit Minuten</p>
+        <p>Verbleibende Zeit: @verbleibendeZeit Sekunden</p>
         <div class="progress mb-3">
-            <div class="progress-bar" role="progressbar" style="width: @pruefungsDurchfuehrungsService.ZeitBalkenBreite%" aria-valuenow="@pruefungsDurchfuehrungsService.ZeitBalkenBreite" aria-valuemin="0" aria-valuemax="100"></div>
+            <div class="progress-bar" role="progressbar" style="width: @zeitBalkenBreite%" aria-valuenow="@zeitBalkenBreite" aria-valuemin="0" aria-valuemax="100"></div>
         </div>
     </div>
 
     <div class="row">
-        @foreach (var aufgabe in pruefungsDurchfuehrungsService.AktuellePruefungsaufgaben)
+        @foreach (var aufgabe in aktuellePruefungsaufgaben)
         {
             <div class="col-md-6 mb-4">
                 <div class="card">
@@ -39,11 +42,11 @@ else if (pruefungsDurchfuehrungsService.AktuellePruefung != null && pruefungsDur
                             {
                                 <li class="list-group-item">
                                     <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="antwort-@aufgabe.Id" id="antwort-@aufgabe.Id-@antwort.Id" @onclick="() => pruefungsDurchfuehrungsService.WaehleAntwort(aufgabe.Id, antwort.Id)" disabled="@pruefungsDurchfuehrungsService.PruefungBeendet">
+                                        <input class="form-check-input" type="radio" name="antwort-@aufgabe.Id" id="antwort-@aufgabe.Id-@antwort.Id" @onclick="() => WähleAntwort(aufgabe.Id, antwort.Id)" disabled="@pruefungBeendet">
                                         <label class="form-check-label" for="antwort-@aufgabe.Id-@antwort.Id">
                                             @antwort.Text
                                         </label>
-                                        @if (pruefungsDurchfuehrungsService.PruefungBeendet && antwort.IstRichtig)
+                                        @if (pruefungBeendet && antwort.IstRichtig)
                                         {
                                             <span class="badge bg-success ms-2">Richtig</span>
                                         }
@@ -59,8 +62,8 @@ else if (pruefungsDurchfuehrungsService.AktuellePruefung != null && pruefungsDur
 
     <div class="row mt-3">
         <div class="col-12">
-            <button class="btn btn-primary" @onclick="pruefungsDurchfuehrungsService.BeendePruefung" disabled="@pruefungsDurchfuehrungsService.PruefungBeendet">Prüfung abschließen</button>
-            <button class="btn btn-secondary ms-2" @onclick="pruefungsDurchfuehrungsService.ZurueckZuPruefungsliste">Zurück zur Übersicht</button>
+            <button class="btn btn-primary" @onclick="PruefungBeenden" disabled="@pruefungBeendet">Prüfung abschließen</button>
+            <button class="btn btn-secondary ms-2" @onclick="ZurückZuPruefungsliste">Zurück zur Übersicht</button>
         </div>
     </div>
 }
@@ -180,7 +183,15 @@ else
 @code {
     private List<PruefungViewModel>? pruefungen;
     private List<AufgabeViewModel>? alleAufgaben;
+    private List<AufgabeViewModel>? aktuellePruefungsaufgaben;
+    private PruefungViewModel? aktuellePruefung;
+    private PruefungViewModel? selectedPruefung;
     private string? errorMessage;
+    
+    private bool pruefungBeendet = false;
+    private int verbleibendeZeit = 0;
+    private double zeitBalkenBreite = 100;
+    private System.Threading.Timer? timer;
     
     // Neue Prüfung erstellen
     private bool showCreatePruefungForm = false;
@@ -189,25 +200,15 @@ else
     
     // Prüfungsaufgaben bearbeiten
     private bool showEditAufgabenForm = false;
-    private PruefungViewModel? selectedPruefung;
     private List<int> selectedPruefungAufgabenIds = new();
-
-    [Inject]
-    private IPruefungDataService PruefungDataService { get; set; } = default!;
-
-    [Inject]
-    private IPruefungsDurchfuehrungsService pruefungsDurchfuehrungsService { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
             // Lade Prüfungen und alle Aufgaben
-            pruefungen = await PruefungDataService.GetAllePruefungenAsync();
-            alleAufgaben = await PruefungDataService.GetAlleAufgabenAsync();
-            
-            // Registrieren des OnStateChange-Events
-            pruefungsDurchfuehrungsService.OnStateChange += StateHasChanged;
+            pruefungen = (await PruefungService.GetAllPruefungenAsync()).ToList();
+            alleAufgaben = (await PruefungService.GetAllAufgabenAsync()).ToList();
         }
         catch (Exception ex)
         {
@@ -215,25 +216,80 @@ else
         }
     }
 
-    public void Dispose()
-    {
-        // Deregistrieren des OnStateChange-Events beim Entfernen der Komponente
-        if (pruefungsDurchfuehrungsService != null)
-        {
-            pruefungsDurchfuehrungsService.OnStateChange -= StateHasChanged;
-        }
-    }
-
     private async Task StartePruefung(int pruefungId)
     {
         try
         {
-            await pruefungsDurchfuehrungsService.StartePruefungAsync(pruefungId);
+            // Prüfung abrufen
+            aktuellePruefung = await PruefungService.GetPruefungByIdAsync(pruefungId);
+            
+            // Aufgaben für diese Prüfung abrufen
+            aktuellePruefungsaufgaben = (await PruefungService.GetAufgabenForPruefungAsync(pruefungId)).ToList();
+            
+            pruefungBeendet = false;
+            
+            // Timer für das Zeitlimit starten
+            if (aktuellePruefung != null)
+            {
+                verbleibendeZeit = aktuellePruefung.Zeitlimit * 60; // Umrechnung in Sekunden
+                zeitBalkenBreite = 100;
+                
+                // Timer für das Herunterzählen der Zeit
+                timer = new System.Threading.Timer(TimerCallback, null, 0, 1000);
+            }
         }
         catch (Exception ex)
         {
             errorMessage = $"Fehler beim Starten der Prüfung: {ex.Message}";
         }
+    }
+
+    private void TimerCallback(object? state)
+    {
+        if (verbleibendeZeit > 0)
+        {
+            verbleibendeZeit--;
+            
+            if (aktuellePruefung != null)
+            {
+                zeitBalkenBreite = (double)verbleibendeZeit / (aktuellePruefung.Zeitlimit * 60) * 100;
+            }
+            
+            InvokeAsync(StateHasChanged);
+        }
+        else
+        {
+            PruefungBeenden();
+        }
+    }
+
+    private void WähleAntwort(int aufgabeId, int antwortId)
+    {
+        // Hier könnte die Antwort gespeichert werden
+    }
+
+    private void PruefungBeenden()
+    {
+        pruefungBeendet = true;
+        
+        // Timer stoppen
+        timer?.Change(Timeout.Infinite, Timeout.Infinite);
+        timer?.Dispose();
+        timer = null;
+        
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void ZurückZuPruefungsliste()
+    {
+        aktuellePruefungsaufgaben = null;
+        aktuellePruefung = null;
+        pruefungBeendet = false;
+        
+        // Timer stoppen falls noch aktiv
+        timer?.Change(Timeout.Infinite, Timeout.Infinite);
+        timer?.Dispose();
+        timer = null;
     }
 
     // Prüfung erstellen - Formular anzeigen
@@ -272,7 +328,7 @@ else
         {
             neuePruefung.AufgabenIds = selectedAufgabenIds;
             
-            var neuePruefungResponse = await PruefungDataService.CreatePruefungAsync(neuePruefung);
+            var neuePruefungResponse = await PruefungService.CreatePruefungAsync(neuePruefung);
             
             if (neuePruefungResponse != null)
             {
@@ -339,7 +395,7 @@ else
                 AufgabenIds = selectedPruefungAufgabenIds
             };
             
-            var updatedPruefung = await PruefungDataService.UpdatePruefungAufgabenAsync(selectedPruefung.Id, aufgabenZuweisen);
+            var updatedPruefung = await PruefungService.UpdatePruefungAufgabenAsync(selectedPruefung.Id, aufgabenZuweisen);
             
             if (updatedPruefung != null)
             {
@@ -381,9 +437,9 @@ else
 
         try
         {
-            var success = await PruefungDataService.DeletePruefungAsync(pruefungId);
+            var result = await PruefungService.DeletePruefungAsync(pruefungId);
             
-            if (success)
+            if (result)
             {
                 if (pruefungen != null)
                 {

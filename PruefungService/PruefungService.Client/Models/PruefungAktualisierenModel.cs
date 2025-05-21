@@ -1,8 +1,8 @@
 using System;
 
-namespace PruefungService.Application.DTOs
+namespace PruefungService.Client.Models
 {
-    public class PruefungAktualisierenDto
+    public class PruefungAktualisierenModel
     {
         public string? Titel { get; set; }
         public DateTime Datum { get; set; }

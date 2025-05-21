@@ -1,13 +1,15 @@
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using AufgabenService.Client.Models;
 
 namespace AufgabenService.Client.Services.Interfaces
 {
     public interface IAufgabenDataService
     {
-        Task<List<AufgabenViewModel>> GetAlleAufgabenAsync();
-        Task<AufgabenViewModel?> GetAufgabeByIdAsync(int id);
-        Task<AufgabenViewModel?> CreateAufgabeAsync(AufgabeErstellenModel aufgabeDto);
-        Task<AufgabenViewModel?> UpdateAufgabeAsync(int id, AufgabeErstellenModel aufgabeDto);
+        Task<IEnumerable<AufgabeViewModel>> GetAllAufgabenAsync();
+        Task<AufgabeViewModel> GetAufgabeByIdAsync(int id);
+        Task<AufgabeViewModel> CreateAufgabeAsync(AufgabeErstellenModel aufgabe);
+        Task<AufgabeViewModel> UpdateAufgabeAsync(int id, AufgabeErstellenModel aufgabe);
         Task<bool> DeleteAufgabeAsync(int id);
     }
 }
