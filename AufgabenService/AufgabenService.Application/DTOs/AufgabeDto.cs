@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace AufgabenService.Application.DTOs
 {
     public class AufgabeDto

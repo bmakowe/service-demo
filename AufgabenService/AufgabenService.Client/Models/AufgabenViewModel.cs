@@ -1,6 +1,6 @@
 namespace AufgabenService.Client.Models
 {
-    public class AufgabeViewModel
+    public class AufgabenViewModel
     {
         public int Id { get; set; }
         public string Frage { get; set; } = string.Empty;

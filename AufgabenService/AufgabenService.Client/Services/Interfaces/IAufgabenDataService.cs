@@ -4,10 +4,10 @@ namespace AufgabenService.Client.Services.Interfaces
 {
     public interface IAufgabenDataService
     {
-        Task<IEnumerable<AufgabeViewModel>> GetAlleAufgabenAsync();
-        Task<AufgabeViewModel?> GetAufgabeByIdAsync(int id);
-        Task<AufgabeViewModel> ErstelleAufgabeAsync(AufgabeErstellenModel aufgabe);
-        Task<AufgabeViewModel?> AktualisiereAufgabeAsync(int id, AufgabeErstellenModel aufgabe);
-        Task<bool> LoescheAufgabeAsync(int id);
+        Task<List<AufgabenViewModel>> GetAlleAufgabenAsync();
+        Task<AufgabenViewModel?> GetAufgabeByIdAsync(int id);
+        Task<AufgabenViewModel?> CreateAufgabeAsync(AufgabeErstellenModel aufgabeDto);
+        Task<AufgabenViewModel?> UpdateAufgabeAsync(int id, AufgabeErstellenModel aufgabeDto);
+        Task<bool> DeleteAufgabeAsync(int id);
     }
 }

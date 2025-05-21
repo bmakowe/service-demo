@@ -1,8 +1,8 @@
 services:
   aufgaben-api:
     build:
-      context: .
-      dockerfile: AufgabenService/AufgabenService.API/Dockerfile
+      context: ./AufgabenService
+      dockerfile: AufgabenService.API/Dockerfile
     ports:
       - "5001:8080"
     networks:
@@ -14,6 +14,7 @@ services:
   aufgaben-client:
     build:
       context: ./AufgabenService/AufgabenService.Client
+      dockerfile: Dockerfile
     ports:
       - "5101:80"
     depends_on:
@@ -27,8 +28,8 @@ services:
 
   pruefung-api:
     build:
-      context: .
-      dockerfile: PruefungService/PruefungService.API/Dockerfile
+      context: ./PruefungService/PruefungService.API
+      dockerfile: Dockerfile
     ports:
       - "5002:8080"
     networks:
@@ -42,6 +43,7 @@ services:
   pruefung-client:
     build:
       context: ./PruefungService/PruefungService.Client
+      dockerfile: Dockerfile
     ports:
       - "5102:80"
     depends_on:

@@ -1,38 +1,28 @@
+using AutoMapper;
+using AufgabenService.Application.DTOs;
+using AufgabenService.Domain.Entities;
+
 namespace AufgabenService.Application.Mapping
 {
-    /// <summary>
-    /// Mapping-Klasse zur Konvertierung zwischen Domänenentitäten und DTOs
-    /// </summary>
-    public static class AufgabenMapper
+    public class MappingProfile : Profile
     {
-        public static AufgabeDto ToDto(this Aufgabe aufgabe)
+        public MappingProfile()
         {
-            return new AufgabeDto
-            {
-                Id = aufgabe.Id,
-                Frage = aufgabe.Frage,
-                Antworten = aufgabe.Antworten.Select(a => new AntwortDto
-                {
-                    Id = a.Id,
-                    Text = a.Text,
-                    IstRichtig = a.IstRichtig
-                }).ToList()
-            };
-        }
-        
-        public static List<AufgabeDto> ToDto(this IEnumerable<Aufgabe> aufgaben)
-        {
-            return aufgaben.Select(a => a.ToDto()).ToList();
-        }
-        
-        public static AntwortDto ToDto(this Antwort antwort)
-        {
-            return new AntwortDto
-            {
-                Id = antwort.Id,
-                Text = antwort.Text,
-                IstRichtig = antwort.IstRichtig
-            };
+            // Domain -> DTO
+            CreateMap<Aufgabe, AufgabeDto>();
+            CreateMap<Antwort, AntwortDto>();
+
+            // DTO -> Domain
+            CreateMap<AufgabeErstellenDto, Aufgabe>()
+                .ForMember(dest => dest.Id, opt => opt.Ignore())
+                .ForMember(dest => dest.Antworten, opt => opt.Ignore());
+
+            CreateMap<AufgabeAktualisierenDto, Aufgabe>()
+                .ForMember(dest => dest.Id, opt => opt.Ignore())
+                .ForMember(dest => dest.Antworten, opt => opt.Ignore());
+            
+            CreateMap<AntwortErstellenDto, Antwort>()
+                .ForMember(dest => dest.Id, opt => opt.Ignore());
         }
     }
 }

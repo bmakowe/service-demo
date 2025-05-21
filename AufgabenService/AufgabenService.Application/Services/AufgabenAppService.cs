@@ -1,100 +1,110 @@
+using AutoMapper;
 using AufgabenService.Application.DTOs;
+using AufgabenService.Application.Exceptions;
 using AufgabenService.Application.Interfaces;
 using AufgabenService.Domain.Entities;
-using AufgabenService.Domain.Interfaces;
-using AufgabenService.Domain.Services;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace AufgabenService.Application.Services
 {
     public class AufgabenAppService : IAufgabenService
     {
         private readonly IAufgabenRepository _aufgabenRepository;
-        private readonly AufgabenValidierungsService _validierungsService;
+        private readonly IMapper _mapper;
 
-        public AufgabenAppService(
-            IAufgabenRepository aufgabenRepository,
-            AufgabenValidierungsService validierungsService)
+        public AufgabenAppService(IAufgabenRepository aufgabenRepository, IMapper mapper)
         {
             _aufgabenRepository = aufgabenRepository;
-            _validierungsService = validierungsService;
+            _mapper = mapper;
         }
 
-        public async Task<IEnumerable<AufgabeDto>> GetAlleAufgabenAsync()
+        public async Task<List<AufgabeDto>> GetAlleAufgabenAsync()
         {
             var aufgaben = await _aufgabenRepository.GetAlleAufgabenAsync();
-            return aufgaben.Select(MapToDto);
+            return _mapper.Map<List<AufgabeDto>>(aufgaben);
         }
 
         public async Task<AufgabeDto?> GetAufgabeByIdAsync(int id)
         {
             var aufgabe = await _aufgabenRepository.GetAufgabeByIdAsync(id);
-            return aufgabe != null ? MapToDto(aufgabe) : null;
+            return aufgabe != null ? _mapper.Map<AufgabeDto>(aufgabe) : null;
         }
 
         public async Task<AufgabeDto> ErstelleAufgabeAsync(AufgabeErstellenDto aufgabeDto)
         {
-            // Domain-Entität erstellen
-            var aufgabe = new Aufgabe(aufgabeDto.Frage);
-            
-            // Antworten hinzufügen
-            foreach (var antwortDto in aufgabeDto.Antworten)
+            ValidateAufgabe(aufgabeDto.Frage, aufgabeDto.Antworten);
+
+            var aufgabe = new Aufgabe
             {
-                aufgabe.FuegeAntwortHinzu(antwortDto.Text, antwortDto.IstRichtig);
-            }
-            
-            // Validieren
-            if (!_validierungsService.IstAufgabeGueltig(aufgabe))
-                throw new InvalidOperationException("Die Aufgabe ist nicht gültig.");
-            
-            // Persistieren
-            var erstellteAufgabe = await _aufgabenRepository.ErstelleAufgabeAsync(aufgabe);
-            
-            return MapToDto(erstellteAufgabe);
-        }
-
-        public async Task<AufgabeDto?> AktualisiereAufgabeAsync(int id, AufgabeAktualisierenDto aufgabeDto)
-        {
-            // Bestehende Aufgabe abrufen
-            var bestehendeAufgabe = await _aufgabenRepository.GetAufgabeByIdAsync(id);
-            if (bestehendeAufgabe == null)
-                return null;
-            
-            // Aufgabe aktualisieren
-            var aktualisierteAufgabe = Aufgabe.Erstellen(
-                id,
-                aufgabeDto.Frage,
-                aufgabeDto.Antworten.Select(a => (a.Text, a.IstRichtig)).ToList()
-            );
-            
-            // Validieren
-            if (!_validierungsService.IstAufgabeGueltig(aktualisierteAufgabe))
-                throw new InvalidOperationException("Die aktualisierte Aufgabe ist nicht gültig.");
-            
-            // Persistieren
-            var gespeicherteAufgabe = await _aufgabenRepository.AktualisiereAufgabeAsync(aktualisierteAufgabe);
-            
-            return gespeicherteAufgabe != null ? MapToDto(gespeicherteAufgabe) : null;
-        }
-
-        public async Task<bool> LoescheAufgabeAsync(int id)
-        {
-            return await _aufgabenRepository.LoescheAufgabeAsync(id);
-        }
-
-        // Mapping-Methoden
-        private AufgabeDto MapToDto(Aufgabe aufgabe)
-        {
-            return new AufgabeDto
-            {
-                Id = aufgabe.Id,
-                Frage = aufgabe.Frage,
-                Antworten = aufgabe.Antworten.Select(a => new AntwortDto
+                Frage = aufgabeDto.Frage,
+                Antworten = aufgabeDto.Antworten.Select((a, index) => new Antwort
                 {
-                    Id = a.Id,
+                    Id = index + 1,
                     Text = a.Text,
                     IstRichtig = a.IstRichtig
                 }).ToList()
             };
+
+            var erstellteAufgabe = await _aufgabenRepository.CreateAufgabeAsync(aufgabe);
+            return _mapper.Map<AufgabeDto>(erstellteAufgabe);
+        }
+
+        public async Task<AufgabeDto?> AktualisiereAufgabeAsync(int id, AufgabeAktualisierenDto aufgabeDto)
+        {
+            var aufgabe = await _aufgabenRepository.GetAufgabeByIdAsync(id);
+            if (aufgabe == null)
+            {
+                return null;
+            }
+
+            ValidateAufgabe(aufgabeDto.Frage, aufgabeDto.Antworten);
+
+            aufgabe.Frage = aufgabeDto.Frage;
+            aufgabe.Antworten.Clear();
+            
+            for (int i = 0; i < aufgabeDto.Antworten.Count; i++)
+            {
+                var antwortDto = aufgabeDto.Antworten[i];
+                aufgabe.Antworten.Add(new Antwort
+                {
+                    Id = i + 1,
+                    Text = antwortDto.Text,
+                    IstRichtig = antwortDto.IstRichtig
+                });
+            }
+
+            var aktualisierteAufgabe = await _aufgabenRepository.UpdateAufgabeAsync(aufgabe);
+            return aktualisierteAufgabe != null ? _mapper.Map<AufgabeDto>(aktualisierteAufgabe) : null;
+        }
+
+        public async Task<bool> LoescheAufgabeAsync(int id)
+        {
+            return await _aufgabenRepository.DeleteAufgabeAsync(id);
+        }
+
+        private void ValidateAufgabe(string frage, List<AntwortErstellenDto> antworten)
+        {
+            if (string.IsNullOrWhiteSpace(frage))
+            {
+                throw new ValidationException("Die Frage darf nicht leer sein.");
+            }
+
+            if (antworten.Count < 2)
+            {
+                throw new ValidationException("Eine Aufgabe muss mindestens zwei Antwortmöglichkeiten haben.");
+            }
+
+            if (!antworten.Any(a => a.IstRichtig))
+            {
+                throw new ValidationException("Mindestens eine Antwort muss als richtig markiert sein.");
+            }
+
+            if (antworten.Any(a => string.IsNullOrWhiteSpace(a.Text)))
+            {
+                throw new ValidationException("Alle Antworten müssen einen Text haben.");
+            }
         }
     }
 }

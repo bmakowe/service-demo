@@ -1,5 +1,3 @@
-using System.Timers;
-using Microsoft.JSInterop;
 using PruefungService.Client.Models;
 using PruefungService.Client.Services.Interfaces;
 
@@ -8,73 +6,80 @@ namespace PruefungService.Client.Services.Implementations
     public class PruefungsDurchfuehrungsService : IPruefungsDurchfuehrungsService, IDisposable
     {
         private readonly IPruefungDataService _pruefungDataService;
-        private readonly IJSRuntime _jsRuntime;
-        private System.Timers.Timer? _timer;
-        private Dictionary<int, int> _benutzerAntworten = new();
-        
-        public PruefungViewModel? AktuellePruefung { get; private set; }
-        public List<AufgabeViewModel>? AufgabenListe { get; private set; }
-        public int VerbleibendeZeit { get; private set; }
-        public bool PruefungBeendet { get; private set; }
-        
-        // Event für UI-Updates
-        public event Action? OnChange;
+        private System.Threading.Timer? _timer;
 
-        public PruefungsDurchfuehrungsService(
-            IPruefungDataService pruefungDataService,
-            IJSRuntime jsRuntime)
+        public PruefungViewModel? AktuellePruefung { get; private set; }
+        public List<AufgabeViewModel>? AktuellePruefungsaufgaben { get; private set; }
+        public bool PruefungBeendet { get; private set; }
+        public int VerbleibendeZeit { get; private set; }
+        public double ZeitBalkenBreite { get; private set; }
+
+        public event Action? OnStateChange;
+
+        public PruefungsDurchfuehrungsService(IPruefungDataService pruefungDataService)
         {
             _pruefungDataService = pruefungDataService;
-            _jsRuntime = jsRuntime;
         }
 
-        public async Task<bool> StartePruefungAsync(int pruefungId)
+        public async Task StartePruefungAsync(int pruefungId)
         {
-            try
+            AktuellePruefung = await _pruefungDataService.GetPruefungByIdAsync(pruefungId);
+            AktuellePruefungsaufgaben = await _pruefungDataService.GetAufgabenFuerPruefungAsync(pruefungId);
+            
+            PruefungBeendet = false;
+            
+            if (AktuellePruefung != null)
             {
-                // Prüfungsdaten laden
-                AktuellePruefung = await _pruefungDataService.GetPruefungByIdAsync(pruefungId);
+                VerbleibendeZeit = AktuellePruefung.Zeitlimit * 60;
+                ZeitBalkenBreite = 100;
                 
-                if (AktuellePruefung == null)
-                    return false;
-                
-                // Aufgaben für diese Prüfung laden
-                var aufgaben = await _pruefungDataService.GetAufgabenFuerPruefungAsync(pruefungId);
-                AufgabenListe = aufgaben.ToList();
-                
-                // Prüfungsstatus initialisieren
-                PruefungBeendet = false;
-                _benutzerAntworten.Clear();
-                
-                // Timer initialisieren
-                VerbleibendeZeit = AktuellePruefung.Zeitlimit * 60; // In Sekunden
-                
-                // UI über Änderungen informieren
-                NotifyStateChanged();
-                
-                return true;
+                _timer = new System.Threading.Timer(TimerCallback, null, 0, 1000);
             }
-            catch (Exception)
-            {
-                // In einer realen Anwendung würde hier Logging erfolgen
-                return false;
-            }
+            
+            NotifyStateChanged();
         }
 
-        public void StartTimer()
+        public void WaehleAntwort(int aufgabeId, int antwortId)
         {
-            // Timer erstellen (1-Sekunden-Intervall)
-            _timer = new System.Timers.Timer(1000);
-            _timer.Elapsed += OnTimerElapsed;
-            _timer.AutoReset = true;
-            _timer.Enabled = true;
+            // Hier könnte die Antwort gespeichert werden
+            NotifyStateChanged();
         }
 
-        private void OnTimerElapsed(object? sender, ElapsedEventArgs e)
+        public void BeendePruefung()
+        {
+            PruefungBeendet = true;
+            
+            _timer?.Change(Timeout.Infinite, Timeout.Infinite);
+            _timer?.Dispose();
+            _timer = null;
+            
+            NotifyStateChanged();
+        }
+
+        public void ZurueckZuPruefungsliste()
+        {
+            AktuellePruefung = null;
+            AktuellePruefungsaufgaben = null;
+            PruefungBeendet = false;
+            
+            _timer?.Change(Timeout.Infinite, Timeout.Infinite);
+            _timer?.Dispose();
+            _timer = null;
+            
+            NotifyStateChanged();
+        }
+
+        private void TimerCallback(object? state)
         {
             if (VerbleibendeZeit > 0)
             {
                 VerbleibendeZeit--;
+                
+                if (AktuellePruefung != null)
+                {
+                    ZeitBalkenBreite = (double)VerbleibendeZeit / (AktuellePruefung.Zeitlimit * 60) * 100;
+                }
+                
                 NotifyStateChanged();
             }
             else
@@ -83,65 +88,11 @@ namespace PruefungService.Client.Services.Implementations
             }
         }
 
-        public void StopTimer()
-        {
-            _timer?.Stop();
-            _timer?.Dispose();
-            _timer = null;
-        }
-
-        public void BeendePruefung()
-        {
-            PruefungBeendet = true;
-            StopTimer();
-            NotifyStateChanged();
-        }
-
-        public void WaehleAntwort(int aufgabeId, int antwortId)
-        {
-            if (!PruefungBeendet)
-            {
-                _benutzerAntworten[aufgabeId] = antwortId;
-            }
-        }
-
-        public PruefungsErgebnisModel BerechnePruefungsErgebnis()
-        {
-            if (AktuellePruefung == null || AufgabenListe == null)
-            {
-                throw new InvalidOperationException("Keine aktive Prüfung vorhanden.");
-            }
-            
-            int richtigBeantwortet = 0;
-            
-            foreach (var aufgabe in AufgabenListe)
-            {
-                // Prüfen, ob die Aufgabe beantwortet wurde
-                if (_benutzerAntworten.TryGetValue(aufgabe.Id, out int antwortId))
-                {
-                    // Prüfen, ob die gewählte Antwort richtig ist
-                    var gewaehlteAntwort = aufgabe.Antworten.FirstOrDefault(a => a.Id == antwortId);
-                    if (gewaehlteAntwort != null && gewaehlteAntwort.IstRichtig)
-                    {
-                        richtigBeantwortet++;
-                    }
-                }
-            }
-            
-            return new PruefungsErgebnisModel
-            {
-                PruefungId = AktuellePruefung.Id,
-                PruefungsTitel = AktuellePruefung.Titel,
-                AnzahlRichtigBeantwortet = richtigBeantwortet,
-                AnzahlGesamtAufgaben = AufgabenListe.Count
-            };
-        }
-
-        private void NotifyStateChanged() => OnChange?.Invoke();
+        private void NotifyStateChanged() => OnStateChange?.Invoke();
 
         public void Dispose()
         {
-            StopTimer();
+            _timer?.Dispose();
         }
     }
 }

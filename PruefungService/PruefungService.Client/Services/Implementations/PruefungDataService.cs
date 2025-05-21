@@ -7,100 +7,59 @@ namespace PruefungService.Client.Services.Implementations
     public class PruefungDataService : IPruefungDataService
     {
         private readonly HttpClient _httpClient;
-        private readonly string _baseUrl = "api/pruefung";
 
         public PruefungDataService(HttpClient httpClient)
         {
             _httpClient = httpClient;
         }
 
-        public async Task<IEnumerable<PruefungViewModel>> GetAllePruefungenAsync()
+        public async Task<List<PruefungViewModel>> GetAllePruefungenAsync()
         {
-            try
-            {
-                var pruefungen = await _httpClient.GetFromJsonAsync<List<PruefungViewModel>>(_baseUrl);
-                return pruefungen ?? new List<PruefungViewModel>();
-            }
-            catch (Exception)
-            {
-                // In einer realen Anwendung würde hier Logging erfolgen
-                return new List<PruefungViewModel>();
-            }
+            return await _httpClient.GetFromJsonAsync<List<PruefungViewModel>>("api/pruefung") ?? new List<PruefungViewModel>();
         }
 
         public async Task<PruefungViewModel?> GetPruefungByIdAsync(int id)
         {
-            try
-            {
-                return await _httpClient.GetFromJsonAsync<PruefungViewModel>($"{_baseUrl}/{id}");
-            }
-            catch (Exception)
-            {
-                // In einer realen Anwendung würde hier Logging erfolgen
-                return null;
-            }
+            return await _httpClient.GetFromJsonAsync<PruefungViewModel>($"api/pruefung/{id}");
         }
 
-        public async Task<IEnumerable<AufgabeViewModel>> GetAufgabenFuerPruefungAsync(int pruefungId)
+        public async Task<List<AufgabeViewModel>> GetAlleAufgabenAsync()
         {
-            try
-            {
-                var aufgaben = await _httpClient.GetFromJsonAsync<List<AufgabeViewModel>>($"{_baseUrl}/{pruefungId}/aufgaben");
-                return aufgaben ?? new List<AufgabeViewModel>();
-            }
-            catch (Exception)
-            {
-                // In einer realen Anwendung würde hier Logging erfolgen
-                return new List<AufgabeViewModel>();
-            }
+            return await _httpClient.GetFromJsonAsync<List<AufgabeViewModel>>("api/aufgaben") ?? new List<AufgabeViewModel>();
         }
 
-        public async Task<IEnumerable<AufgabeViewModel>> GetAlleAufgabenAsync()
+        public async Task<List<AufgabeViewModel>> GetAufgabenFuerPruefungAsync(int pruefungId)
         {
-            try
-            {
-                var aufgaben = await _httpClient.GetFromJsonAsync<List<AufgabeViewModel>>("api/aufgaben");
-                return aufgaben ?? new List<AufgabeViewModel>();
-            }
-            catch (Exception)
-            {
-                // In einer realen Anwendung würde hier Logging erfolgen
-                return new List<AufgabeViewModel>();
-            }
+            return await _httpClient.GetFromJsonAsync<List<AufgabeViewModel>>($"api/pruefung/{pruefungId}/aufgaben") ?? new List<AufgabeViewModel>();
         }
 
-        public async Task<PruefungViewModel> ErstellePruefungAsync(PruefungErstellenModel pruefung)
+        public async Task<PruefungViewModel?> CreatePruefungAsync(PruefungErstellenModel pruefungDto)
         {
-            var response = await _httpClient.PostAsJsonAsync(_baseUrl, pruefung);
-            response.EnsureSuccessStatusCode();
+            var response = await _httpClient.PostAsJsonAsync("api/pruefung", pruefungDto);
             
-            return await response.Content.ReadFromJsonAsync<PruefungViewModel>() 
-                ?? throw new InvalidOperationException("Die Antwort konnte nicht deserialisiert werden.");
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<PruefungViewModel>();
+            }
+            
+            return null;
         }
 
-        public async Task<PruefungViewModel?> AktualisierePruefungAsync(int id, PruefungErstellenModel pruefung)
+        public async Task<PruefungViewModel?> UpdatePruefungAufgabenAsync(int pruefungId, AufgabenZuweisenModel aufgabenDto)
         {
-            var response = await _httpClient.PutAsJsonAsync($"{_baseUrl}/{id}", pruefung);
+            var response = await _httpClient.PutAsJsonAsync($"api/pruefung/{pruefungId}/aufgaben", aufgabenDto);
             
-            if (!response.IsSuccessStatusCode)
-                return null;
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<PruefungViewModel>();
+            }
             
-            return await response.Content.ReadFromJsonAsync<PruefungViewModel>();
+            return null;
         }
 
-        public async Task<PruefungViewModel?> WeiseAufgabenZuAsync(int id, AufgabenZuweisenModel aufgaben)
+        public async Task<bool> DeletePruefungAsync(int id)
         {
-            var response = await _httpClient.PutAsJsonAsync($"{_baseUrl}/{id}/aufgaben", aufgaben);
-            
-            if (!response.IsSuccessStatusCode)
-                return null;
-            
-            return await response.Content.ReadFromJsonAsync<PruefungViewModel>();
-        }
-
-        public async Task<bool> LoeschePruefungAsync(int id)
-        {
-            var response = await _httpClient.DeleteAsync($"{_baseUrl}/{id}");
+            var response = await _httpClient.DeleteAsync($"api/pruefung/{id}");
             return response.IsSuccessStatusCode;
         }
     }

@@ -7,62 +7,49 @@ namespace AufgabenService.Client.Services.Implementations
     public class AufgabenDataService : IAufgabenDataService
     {
         private readonly HttpClient _httpClient;
-        private readonly string _baseUrl = "api/aufgaben";
 
         public AufgabenDataService(HttpClient httpClient)
         {
             _httpClient = httpClient;
         }
 
-        public async Task<IEnumerable<AufgabeViewModel>> GetAlleAufgabenAsync()
+        public async Task<List<AufgabenViewModel>> GetAlleAufgabenAsync()
         {
-            try
-            {
-                var aufgaben = await _httpClient.GetFromJsonAsync<List<AufgabeViewModel>>(_baseUrl);
-                return aufgaben ?? new List<AufgabeViewModel>();
-            }
-            catch (Exception)
-            {
-                // In einer realen Anwendung würde hier Logging erfolgen
-                return new List<AufgabeViewModel>();
-            }
+            return await _httpClient.GetFromJsonAsync<List<AufgabenViewModel>>("api/aufgaben") ?? new List<AufgabenViewModel>();
         }
 
-        public async Task<AufgabeViewModel?> GetAufgabeByIdAsync(int id)
+        public async Task<AufgabenViewModel?> GetAufgabeByIdAsync(int id)
         {
-            try
-            {
-                return await _httpClient.GetFromJsonAsync<AufgabeViewModel>($"{_baseUrl}/{id}");
-            }
-            catch (Exception)
-            {
-                // In einer realen Anwendung würde hier Logging erfolgen
-                return null;
-            }
+            return await _httpClient.GetFromJsonAsync<AufgabenViewModel>($"api/aufgaben/{id}");
         }
 
-        public async Task<AufgabeViewModel> ErstelleAufgabeAsync(AufgabeErstellenModel aufgabe)
+        public async Task<AufgabenViewModel?> CreateAufgabeAsync(AufgabeErstellenModel aufgabeDto)
         {
-            var response = await _httpClient.PostAsJsonAsync(_baseUrl, aufgabe);
-            response.EnsureSuccessStatusCode();
+            var response = await _httpClient.PostAsJsonAsync("api/aufgaben", aufgabeDto);
             
-            return await response.Content.ReadFromJsonAsync<AufgabeViewModel>() 
-                ?? throw new InvalidOperationException("Die Antwort konnte nicht deserialisiert werden.");
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<AufgabenViewModel>();
+            }
+            
+            return null;
         }
 
-        public async Task<AufgabeViewModel?> AktualisiereAufgabeAsync(int id, AufgabeErstellenModel aufgabe)
+        public async Task<AufgabenViewModel?> UpdateAufgabeAsync(int id, AufgabeErstellenModel aufgabeDto)
         {
-            var response = await _httpClient.PutAsJsonAsync($"{_baseUrl}/{id}", aufgabe);
+            var response = await _httpClient.PutAsJsonAsync($"api/aufgaben/{id}", aufgabeDto);
             
-            if (!response.IsSuccessStatusCode)
-                return null;
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<AufgabenViewModel>();
+            }
             
-            return await response.Content.ReadFromJsonAsync<AufgabeViewModel>();
+            return null;
         }
 
-        public async Task<bool> LoescheAufgabeAsync(int id)
+        public async Task<bool> DeleteAufgabeAsync(int id)
         {
-            var response = await _httpClient.DeleteAsync($"{_baseUrl}/{id}");
+            var response = await _httpClient.DeleteAsync($"api/aufgaben/{id}");
             return response.IsSuccessStatusCode;
         }
     }

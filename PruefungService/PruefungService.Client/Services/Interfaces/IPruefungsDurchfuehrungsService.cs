@@ -2,19 +2,20 @@ using PruefungService.Client.Models;
 
 namespace PruefungService.Client.Services.Interfaces
 {
-    // Service für die Client-seitige Logik der Prüfungsdurchführung
     public interface IPruefungsDurchfuehrungsService
     {
         PruefungViewModel? AktuellePruefung { get; }
-        List<AufgabeViewModel>? AufgabenListe { get; }
-        int VerbleibendeZeit { get; }
+        List<AufgabeViewModel>? AktuellePruefungsaufgaben { get; }
         bool PruefungBeendet { get; }
+        int VerbleibendeZeit { get; }
+        double ZeitBalkenBreite { get; }
         
-        Task<bool> StartePruefungAsync(int pruefungId);
-        void StartTimer();
-        void StopTimer();
-        void BeendePruefung();
+        // Füge das OnStateChange-Event hinzu
+        event Action OnStateChange;
+        
+        Task StartePruefungAsync(int pruefungId);
         void WaehleAntwort(int aufgabeId, int antwortId);
-        PruefungsErgebnisModel BerechnePruefungsErgebnis();
+        void BeendePruefung();
+        void ZurueckZuPruefungsliste();
     }
 }

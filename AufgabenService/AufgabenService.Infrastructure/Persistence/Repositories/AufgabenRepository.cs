@@ -1,68 +1,96 @@
+using AufgabenService.Application.Interfaces;
 using AufgabenService.Domain.Entities;
-using AufgabenService.Domain.Interfaces;
-using AufgabenService.Infrastructure.Persistence;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace AufgabenService.Infrastructure.Persistence.Repositories
 {
     public class AufgabenRepository : IAufgabenRepository
     {
-        private readonly InMemoryContext _context;
-
-        public AufgabenRepository(InMemoryContext context)
+        private readonly List<Aufgabe> _aufgaben = new()
         {
-            _context = context;
-        }
-
-        public Task<IEnumerable<Aufgabe>> GetAlleAufgabenAsync()
+            new Aufgabe
+            {
+                Id = 1,
+                Frage = "Was ist die Hauptstadt von Deutschland?",
+                Antworten = new List<Antwort>
+                {
+                    new() { Id = 1, Text = "Berlin", IstRichtig = true },
+                    new() { Id = 2, Text = "München", IstRichtig = false },
+                    new() { Id = 3, Text = "Hamburg", IstRichtig = false },
+                    new() { Id = 4, Text = "Köln", IstRichtig = false }
+                }
+            },
+            new Aufgabe
+            {
+                Id = 2,
+                Frage = "Welche Programmiersprache wird für ASP.NET Core verwendet?",
+                Antworten = new List<Antwort>
+                {
+                    new() { Id = 1, Text = "Java", IstRichtig = false },
+                    new() { Id = 2, Text = "C#", IstRichtig = true },
+                    new() { Id = 3, Text = "Python", IstRichtig = false },
+                    new() { Id = 4, Text = "JavaScript", IstRichtig = false }
+                }
+            },
+            new Aufgabe
+            {
+                Id = 3,
+                Frage = "Wie viele Bits hat ein Byte?",
+                Antworten = new List<Antwort>
+                {
+                    new() { Id = 1, Text = "4", IstRichtig = false },
+                    new() { Id = 2, Text = "8", IstRichtig = true },
+                    new() { Id = 3, Text = "16", IstRichtig = false },
+                    new() { Id = 4, Text = "32", IstRichtig = false }
+                }
+            }
+        };
+        
+        public Task<List<Aufgabe>> GetAlleAufgabenAsync()
         {
-            return Task.FromResult(_context.Aufgaben.AsEnumerable());
+            return Task.FromResult(_aufgaben.ToList());
         }
 
         public Task<Aufgabe?> GetAufgabeByIdAsync(int id)
         {
-            var aufgabe = _context.Aufgaben.FirstOrDefault(a => a.Id == id);
+            return Task.FromResult(_aufgaben.FirstOrDefault(a => a.Id == id));
+        }
+
+        public Task<Aufgabe> CreateAufgabeAsync(Aufgabe aufgabe)
+        {
+            int neueId = _aufgaben.Count > 0 ? _aufgaben.Max(a => a.Id) + 1 : 1;
+            aufgabe.Id = neueId;
+            
+            _aufgaben.Add(aufgabe);
+            
             return Task.FromResult(aufgabe);
         }
 
-        public Task<Aufgabe> ErstelleAufgabeAsync(Aufgabe aufgabe)
+        public Task<Aufgabe?> UpdateAufgabeAsync(Aufgabe aufgabe)
         {
-            // ID generieren (in einer echten DB würde dies automatisch erfolgen)
-            var neueId = _context.Aufgaben.Count > 0 ? _context.Aufgaben.Max(a => a.Id) + 1 : 1;
-            
-            // Neue Aufgabe erstellen mit der korrekten ID
-            var neueAufgabe = Aufgabe.Erstellen(
-                neueId,
-                aufgabe.Frage,
-                aufgabe.Antworten.Select(a => (a.Text, a.IstRichtig)).ToList()
-            );
-            
-            _context.Aufgaben.Add(neueAufgabe);
-            
-            return Task.FromResult(neueAufgabe);
-        }
-
-        public Task<Aufgabe?> AktualisiereAufgabeAsync(Aufgabe aufgabe)
-        {
-            var existierendeAufgabe = _context.Aufgaben.FirstOrDefault(a => a.Id == aufgabe.Id);
+            var existierendeAufgabe = _aufgaben.FirstOrDefault(a => a.Id == aufgabe.Id);
             if (existierendeAufgabe == null)
+            {
                 return Task.FromResult<Aufgabe?>(null);
+            }
             
-            // Bestehende Aufgabe entfernen
-            _context.Aufgaben.Remove(existierendeAufgabe);
-            
-            // Aktualisierte Aufgabe hinzufügen
-            _context.Aufgaben.Add(aufgabe);
+            int index = _aufgaben.IndexOf(existierendeAufgabe);
+            _aufgaben[index] = aufgabe;
             
             return Task.FromResult<Aufgabe?>(aufgabe);
         }
 
-        public Task<bool> LoescheAufgabeAsync(int id)
+        public Task<bool> DeleteAufgabeAsync(int id)
         {
-            var aufgabe = _context.Aufgaben.FirstOrDefault(a => a.Id == id);
+            var aufgabe = _aufgaben.FirstOrDefault(a => a.Id == id);
             if (aufgabe == null)
+            {
                 return Task.FromResult(false);
+            }
             
-            _context.Aufgaben.Remove(aufgabe);
+            _aufgaben.Remove(aufgabe);
             return Task.FromResult(true);
         }
     }
