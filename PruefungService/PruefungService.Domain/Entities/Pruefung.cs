@@ -32,9 +32,32 @@ namespace PruefungService.Domain.Entities
                 _aufgabenIds = new List<int>(aufgabenIds);
         }
 
+        // Factory-Methode zum Erstellen von Pruefung-Objekten
+        public static Pruefung Create(string titel, DateTime datum, int zeitlimit, List<int> aufgabenIds)
+        {
+            return new Pruefung(titel, datum, zeitlimit, aufgabenIds);
+        }
+
+        // Methode zum Setzen der ID
         public void SetId(int id)
         {
             Id = id;
+        }
+
+        // Immutable-Stil-Methode für das Setzen der ID
+        public Pruefung WithId(int id)
+        {
+            var pruefung = new Pruefung(this.Titel, this.Datum, this.Zeitlimit, this._aufgabenIds.ToList());
+            pruefung.SetId(id);
+            return pruefung;
+        }
+
+        // Immutable-Stil-Methode für das Aktualisieren der Aufgaben
+        public Pruefung WithAufgaben(List<int> aufgabenIds)
+        {
+            var pruefung = new Pruefung(this.Titel, this.Datum, this.Zeitlimit, aufgabenIds);
+            pruefung.SetId(this.Id);
+            return pruefung;
         }
 
         public void UpdateTitel(string titel)

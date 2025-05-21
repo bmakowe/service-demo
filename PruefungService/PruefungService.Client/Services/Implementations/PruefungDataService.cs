@@ -32,7 +32,7 @@ namespace PruefungService.Client.Services.Implementations
             }
         }
 
-        public async Task<PruefungViewModel> GetPruefungByIdAsync(int id)
+        public async Task<PruefungViewModel?> GetPruefungByIdAsync(int id)
         {
             try
             {
@@ -73,7 +73,7 @@ namespace PruefungService.Client.Services.Implementations
             }
         }
 
-        public async Task<PruefungViewModel> CreatePruefungAsync(PruefungErstellenModel pruefung)
+        public async Task<PruefungViewModel?> CreatePruefungAsync(PruefungErstellenModel pruefung)
         {
             try
             {
@@ -88,7 +88,7 @@ namespace PruefungService.Client.Services.Implementations
             }
         }
 
-        public async Task<PruefungViewModel> UpdatePruefungAsync(int id, PruefungAktualisierenModel pruefung)
+        public async Task<PruefungViewModel?> UpdatePruefungAsync(int id, PruefungAktualisierenModel pruefung)
         {
             try
             {
@@ -103,7 +103,7 @@ namespace PruefungService.Client.Services.Implementations
             }
         }
 
-        public async Task<PruefungViewModel> UpdatePruefungAufgabenAsync(int id, AufgabenZuweisenModel aufgaben)
+        public async Task<PruefungViewModel?> UpdatePruefungAufgabenAsync(int id, AufgabenZuweisenModel aufgaben)
         {
             try
             {

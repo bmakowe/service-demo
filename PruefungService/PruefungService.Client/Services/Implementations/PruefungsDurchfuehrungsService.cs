@@ -24,7 +24,8 @@ namespace PruefungService.Client.Services.Implementations
         public async Task StartePruefungAsync(int pruefungId)
         {
             AktuellePruefung = await _pruefungDataService.GetPruefungByIdAsync(pruefungId);
-            AktuellePruefungsaufgaben = await _pruefungDataService.GetAufgabenFuerPruefungAsync(pruefungId);
+            var aufgaben = await _pruefungDataService.GetAufgabenForPruefungAsync(pruefungId);
+            AktuellePruefungsaufgaben = aufgaben.ToList();
             
             PruefungBeendet = false;
             
